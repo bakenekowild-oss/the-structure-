@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AppCompat window theme; the Compose UI theme lives in ui/Theme.kt. -->
+    <style name="Theme.HeyGobi" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/gold</item>
+        <item name="colorPrimaryDark">@color/navy</item>
+        <item name="colorAccent">@color/gold</item>
+        <item name="android:windowBackground">@color/navy</item>
+    </style>
+</resources>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hey Gobi</string>
+    <string name="accessibility_service_label">Hey Gobi control</string>
+    <string name="accessibility_service_description">Lets Hey Gobi tap, scroll, type and unlock the screen using only your voice, after the voice lock and passcode gate. Nothing leaves the phone.</string>
+    <string name="chat">Chat</string>
+    <string name="setup">Setup</string>
+    <string name="settings">Settings</string>
+    <string name="type_message">Type a message…</string>
+    <string name="send">Send</string>
+    <string name="mic_listen">Listen</string>
+    <string name="brain_not_loaded">Brain is not loaded. Import the model in Setup first.</string>
+    <string name="brain_loading">Loading the brain…</string>
+    <string name="passcode_title">Hey Gobi</string>
+    <string name="passcode_prompt">Passcode cheppandi</string>
+    <string name="passcode_wrong">Passcode thappu, malli try cheyyandi</string>
+    <string name="passcode_locked">Too many wrong tries. Wait a minute.</string>
+    <string name="cancel">Cancel</string>
+</resources>

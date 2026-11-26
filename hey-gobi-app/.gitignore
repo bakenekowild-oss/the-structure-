@@ -1,0 +1,14 @@
+# Hey Gobi — never commit local machine paths, secrets or build output.
+local.properties
+*.jks
+*.keystore
+keystore.properties
+/build
+/app/build
+/.gradle
+.idea/
+*.iml
+.DS_Store
+# The model file is never in this repo (2.8 GB). It lives on the phone at
+# ~/ai/models and is imported into the app on first run (see README.md).
+*.gguf

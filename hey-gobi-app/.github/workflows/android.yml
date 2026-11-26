@@ -1,0 +1,75 @@
+name: Build Hey Gobi APK
+
+# Builds a debug APK on every push to main (and on manual runs).
+# The APK is uploaded as an artifact — download it from the Actions tab.
+# Free: ubuntu-latest runner, Temurin JDK 21, Android SDK + NDK.
+# The 2.8 GB brain model is NEVER in this repo or in the APK.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: |
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
+            "ndk;27.2.12479018" "cmake;3.22.1"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      # --- Verification: fail the build if anything is missing ---
+      - name: Verify APK exists
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK not found at $APK"
+            exit 1
+          fi
+          echo "APK size: $(du -h "$APK" | cut -f1)"
+
+      - name: Verify native library is inside the APK
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          if ! unzip -l "$APK" | grep -q "lib/arm64-v8a/libheygobi.so"; then
+            echo "ERROR: lib/arm64-v8a/libheygobi.so missing from the APK — the llama.cpp native build did not run."
+            exit 1
+          fi
+          echo "Native library present: lib/arm64-v8a/libheygobi.so"
+
+      - name: Verify llama.cpp was actually linked
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          unzip -p "$APK" lib/arm64-v8a/libheygobi.so > /tmp/libheygobi.so
+          if ! strings /tmp/libheygobi.so | grep -q "llama_model_load_from_file"; then
+            echo "ERROR: llama symbols not found in libheygobi.so"
+            exit 1
+          fi
+          echo "llama.cpp symbols confirmed in libheygobi.so"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hey-gobi-app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

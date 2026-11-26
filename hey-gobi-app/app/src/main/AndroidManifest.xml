@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hey Gobi — personal voice assistant.
+  Every permission here is used by a feature the user asked for:
+  - RECORD_AUDIO: wake-word listening + voice commands + voice typing.
+  - FOREGROUND_SERVICE + FOREGROUND_SERVICE_MICROPHONE: always-on "Hey Gobi"
+    listening from anywhere, including lock screen and screen off.
+  - CALL_PHONE / SEND_SMS / READ_CONTACTS: hands-free calls and messages.
+  - ACCESS_FINE_LOCATION: emergency "Help" message with location.
+  - SYSTEM_ALERT_WINDOW: auto-suggestion bar shown while voice typing.
+  - INTERNET: first-run downloads only (Vosk model ~40 MB, speaker model
+    ~25 MB). All listening, commands and brain inference are offline after
+    that. No data is ever uploaded.
+  - QUERY via <queries>: listing launchable apps for "open <app>" by voice.
+    No QUERY_ALL_PACKAGES is used.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Launchable apps, for voice "open <app>". No QUERY_ALL_PACKAGES. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+    </queries>
+
+    <application
+        android:name=".HeyGobiApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.HeyGobi">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.HeyGobi">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          Passcode gate: shown over the lock screen after "Hey Gobi" wakes
+          the phone and the voice is verified. showWhenLocked + turnScreenOn
+          let it appear above the keyguard. It is NOT exported: only the
+          WakeWordService starts it.
+        -->
+        <activity
+            android:name=".ui.PasscodeActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.HeyGobi" />
+
+        <!-- Always-on listening. foregroundServiceType="microphone" is what
+             allows mic capture from the lock screen and with the screen off. -->
+        <service
+            android:name=".voice.WakeWordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!--
+          Full voice control of the screen. The user enables this once in
+          Settings → Accessibility → Hey Gobi. The service never reads the
+          screen for any other purpose and never uploads anything.
+        -->
+        <service
+            android:name=".control.GobiAccessibilityService"
+            android:exported="false"
+            android:label="@string/accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Restart listening after a reboot. -->
+        <receiver
+            android:name=".service.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <!-- After a reboot, restart the listener (only if setup was
+                     completed). LOCKED_BOOT_COMPLETED is deliberately not
+                     used: the encrypted credential store is unavailable
+                     until the first unlock, so the receiver could not read
+                     the setup flag before then anyway. -->
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Document picker for the model import (SAF). -->
+        <activity
+            android:name=".ui.ModelImportActivity"
+            android:exported="false"
+            android:theme="@style/Theme.HeyGobi" />
+
+    </application>
+
+</manifest>
