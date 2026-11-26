@@ -15,6 +15,7 @@ import com.heygobi.app.control.AppLauncher
 import com.heygobi.app.control.GobiAccessibilityService
 import com.heygobi.app.data.CommandLogEntity
 import com.heygobi.app.data.RoutineEntity
+import com.heygobi.app.notifications.GobiNotificationListenerService
 import com.heygobi.app.security.SecureStore
 import kotlinx.coroutines.delay
 import org.json.JSONArray
@@ -99,6 +100,11 @@ class CommandEngine(
             n.startsWith("open ") || n.endsWith(" open cheyyi") || n.endsWith(" open") -> openApp(n, raw)
             n.startsWith("type ") -> typeText(raw.substringAfter("type ", "").trim())
             n.startsWith("call ") -> callContact(n.removePrefix("call ").trim())
+            n.startsWith("notifications chaduvu") || n.startsWith("notification chaduvu") ||
+                n.startsWith("notifications enti") || n.startsWith("notification enti") ||
+                n == "ye messages vachayi" || n == "messages vachayi" ||
+                n == "notifications summary" || n.startsWith("notifications summary") -> readNotifications()
+            n.contains("reply") -> replyToNotification(n)
             n.startsWith("whatsapp ") || n.startsWith("message ") -> messageContact(n, raw)
             n == "back" || n == "go back" -> globalAction("back")
             n == "home" || n == "go home" -> globalAction("home")
@@ -355,6 +361,86 @@ class CommandEngine(
             Log.e(TAG, "WhatsApp send failed", e)
             false
         }
+    }
+
+    private fun readNotifications(): String {
+        if (!GobiNotificationListenerService.isEnabled(context)) {
+            voice.speak(
+                "Notification access off ga undhi. Setup lo Notification access " +
+                "on cheyyandi, appudu notifications chaduvuthanu."
+            )
+            return "fail:no_notification_access"
+        }
+        voice.speak(GobiNotificationListenerService.summaryText())
+        return "notifications:read"
+    }
+
+    private fun replyToNotification(n: String): String {
+        if (!GobiNotificationListenerService.isEnabled(context)) {
+            voice.speak(
+                "Notification access off ga undhi. Setup lo Notification access " +
+                "on cheyyandi."
+            )
+            return "fail:no_notification_access"
+        }
+        val parsed = parseReply(n) ?: run {
+            voice.speak(
+                "Ye notification ki reply ivvalo cheppandi. " +
+                "'WhatsApp lo Raju ki reply hello' la cheppandi."
+            )
+            return "fail:bad_reply"
+        }
+        val (appHint, senderHint, replyText) = parsed
+        if (replyText.isBlank()) {
+            voice.speak("Reply lo emi rayali?")
+            return "fail:bad_reply"
+        }
+        val target = GobiNotificationListenerService.latestReplyable(appHint, senderHint)
+        if (target == null) {
+            val who = when {
+                senderHint != null -> "$senderHint nunchi"
+                appHint != null -> "$appHint lo"
+                else -> ""
+            }
+            voice.speak("Reply ivvadaniki $who ye notification dorakaledhu")
+            return "fail:no_replyable_notification"
+        }
+        val ok = GobiNotificationListenerService.replyTo(target.key, replyText)
+        if (ok) {
+            val who = if (target.title.isNotBlank()) target.title else target.appLabel
+            voice.speak("${target.appLabel} lo $who ki reply pampesanu")
+            return "notification_reply:${target.appLabel}"
+        }
+        voice.speak("Reply pampadam kudarledhu — notification expire ayi undochu")
+        return "fail:reply_send"
+    }
+
+    /**
+     * Parses a reply command into (app hint, sender hint, reply text).
+     * Understood forms (after normalisation):
+     * - "whatsapp lo raju ki reply hello" -> ("whatsapp", "raju", "hello")
+     * - "whatsapp lo reply hello" -> ("whatsapp", null, "hello")
+     * - "reply raju ki hello" -> (null, "raju", "hello")
+     * - "reply hello" -> (null, null, "hello")
+     */
+    private fun parseReply(n: String): Triple<String?, String?, String>? {
+        val appAndSender = Regex("""^(\w+)\s+lo\s+(.+?)\s+ki\s+reply\s+(.+)$""").find(n)
+        if (appAndSender != null) {
+            return Triple(appAndSender.groupValues[1], appAndSender.groupValues[2], appAndSender.groupValues[3])
+        }
+        val appOnly = Regex("""^(\w+)\s+lo\s+reply\s+(.+)$""").find(n)
+        if (appOnly != null) {
+            return Triple(appOnly.groupValues[1], null, appOnly.groupValues[2])
+        }
+        val senderOnly = Regex("""^reply\s+(.+?)\s+ki\s+(.+)$""").find(n)
+        if (senderOnly != null) {
+            return Triple(null, senderOnly.groupValues[1], senderOnly.groupValues[2])
+        }
+        val bare = Regex("""^reply\s+(.+)$""").find(n)
+        if (bare != null) {
+            return Triple(null, null, bare.groupValues[1])
+        }
+        return null
     }
 
     private fun globalAction(which: String): String {

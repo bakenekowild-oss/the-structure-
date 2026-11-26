@@ -8,6 +8,11 @@
   - CALL_PHONE / SEND_SMS / READ_CONTACTS: hands-free calls and messages.
   - ACCESS_FINE_LOCATION: emergency "Help" message with location.
   - SYSTEM_ALERT_WINDOW: auto-suggestion bar shown while voice typing.
+  - REQUEST_IGNORE_BATTERY_OPTIMIZATIONS: lets Setup ask Android to
+    leave the listener alone (without it the battery step silently fails).
+  - BIND_NOTIFICATION_LISTENER_SERVICE: the notification listener
+    service below — reads other apps' notifications to read them aloud
+    and reply by voice. User-enabled only, memory only, never uploaded.
   - INTERNET: first-run downloads only (Vosk model ~40 MB, speaker model
     ~25 MB). All listening, commands and brain inference are offline after
     that. No data is ever uploaded.
@@ -35,6 +40,8 @@
     <uses-permission android:name="android.permission.WRITE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
 
     <!-- Launchable apps, for voice "open <app>". No QUERY_ALL_PACKAGES. -->
     <queries>
@@ -111,6 +118,22 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!--
+          Reads other apps' notifications (WhatsApp etc.) so Hey Gobi can
+          read them aloud and reply by voice. Enabled by the user in Setup
+          or Settings. Notifications stay in memory only — never saved,
+          never uploaded.
+        -->
+        <service
+            android:name=".notifications.GobiNotificationListenerService"
+            android:exported="false"
+            android:label="@string/notification_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
         </service>
 
         <!-- Restart listening after a reboot. -->

@@ -1,5 +1,7 @@
 package com.heygobi.app.ui
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +19,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -26,9 +29,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.heygobi.app.HeyGobiApp
 import com.heygobi.app.data.CommandLogEntity
+import com.heygobi.app.notifications.GobiNotificationListenerService
 import com.heygobi.app.security.SecureStore
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -41,7 +49,22 @@ import java.util.Locale
  */
 @Composable
 fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
+    var tick by remember { mutableStateOf(0) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) tick++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    @Suppress("UNUSED_VARIABLE")
+    val unusedTick = tick
+    val notificationOk = GobiNotificationListenerService.isEnabled(context)
     var wakeMode by remember {
         mutableStateOf(app.secureStore.getString(SecureStore.KEY_WAKE_MODE) ?: "grammar")
     }
@@ -125,6 +148,31 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Notification access", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (notificationOk) {
+                            val count = GobiNotificationListenerService.recentNotifications().size
+                            "On — Hey Gobi mee notifications chadivi, WhatsApp lanti " +
+                            "apps lo reply ivvagalthundhi. Ippudu memory lo $count " +
+                            "notifications unnayi."
+                        } else {
+                            "Off — notifications chadavadaniki, reply ivvadaniki " +
+                            "idi on cheyyali. Setup lo kuda ee step untundhi."
+                        },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Button(onClick = {
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    }) {
+                        Text(if (notificationOk) "Notification settings" else "Enable notification access")
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Routines", style = MaterialTheme.typography.titleMedium)
                     if (routines.isEmpty()) {
                         Text("No routines yet. Say \"good morning\" to use the built-in one, " +
@@ -188,7 +236,7 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("About & honest limits", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Hey Gobi v1.0 — fully offline, no accounts, no subscriptions, " +
+                        "Hey Gobi v1.1 — fully offline, no accounts, no subscriptions, " +
                         "never expires. Brain: Gemma 3 4B Abliterated v2 (Q5_K_M) on-device.\n\n" +
                         "• The brain is slow on this phone — a few seconds per reply. " +
                         "Voice commands never wait on it; only chat does.\n" +

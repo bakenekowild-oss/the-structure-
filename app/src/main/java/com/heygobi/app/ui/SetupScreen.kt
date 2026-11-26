@@ -52,6 +52,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.heygobi.app.HeyGobiApp
 import com.heygobi.app.audio.AudioCapture
+import com.heygobi.app.notifications.GobiNotificationListenerService
 import com.heygobi.app.security.SecureStore
 import com.heygobi.app.voice.VoiceEnrollment
 import com.heygobi.app.voice.WakeWordService
@@ -97,6 +98,8 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
     val permsOk = hasAllPermissions(context)
     val batteryOk = isBatteryUnrestricted(context)
     val a11yOk = isAccessibilityEnabled(context)
+    val notificationOk = GobiNotificationListenerService.isEnabled(context)
+    val overlayOk = isOverlayAllowed(context)
     val modelPath = app.secureStore.getString(SecureStore.KEY_BRAIN_MODEL_PATH)
     val modelOk = !modelPath.isNullOrBlank() && File(modelPath).exists()
     val voskOk = app.voskManager.isModelReady()
@@ -259,6 +262,37 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
             )
         }
         item {
+            SetupStep(
+                title = "11. Notification access (Optional, recommended)",
+                description = "Hey Gobi mee notifications chadivi, WhatsApp lanti apps " +
+                    "lo reply ivvagalthundhi. Notifications phone lone matrame " +
+                    "untayi, ekkadiki upload avvavu. Android warning chupisthundhi — " +
+                    "adi normal, endukante app notifications chaduvuthundhi kabatti.",
+                done = notificationOk,
+                actionLabel = if (notificationOk) "Enabled ✓" else "Enable notification access",
+                onAction = {
+                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                }
+            )
+        }
+        item {
+            SetupStep(
+                title = "12. Display over other apps (Optional)",
+                description = "Voice typing chesthunna appudu suggestions bar ye app " +
+                    "meedha aina chupinchadaniki. Lekapothe suggestions voice lo " +
+                    "matrame vinipisthayi.",
+                done = overlayOk,
+                actionLabel = if (overlayOk) "Allowed ✓" else "Allow display over apps",
+                onAction = {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                    context.startActivity(intent)
+                }
+            )
+        }
+        item {
             if (downloading.isNotEmpty()) {
                 Column {
                     Text("Downloading $downloading… ${(downloadProgress * 100).toInt()}%")
@@ -355,6 +389,11 @@ private fun isAccessibilityEnabled(context: Context): Boolean {
         Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
     ) ?: return false
     return enabled.contains(context.packageName)
+}
+
+private fun isOverlayAllowed(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < 23) return true
+    return Settings.canDrawOverlays(context)
 }
 
 @Composable

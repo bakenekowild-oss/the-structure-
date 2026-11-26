@@ -2,6 +2,8 @@
 <resources>
     <string name="app_name">Hey Gobi</string>
     <string name="accessibility_service_label">Hey Gobi control</string>
+    <string name="notification_listener_label">Hey Gobi notifications</string>
+    <string name="notification_listener_description">Lets Hey Gobi read your notifications aloud and reply to messages by voice. Notifications stay on the phone and are never uploaded.</string>
     <string name="accessibility_service_description">Lets Hey Gobi tap, scroll, type and unlock the screen using only your voice, after the voice lock and passcode gate. Nothing leaves the phone.</string>
     <string name="chat">Chat</string>
     <string name="setup">Setup</string>

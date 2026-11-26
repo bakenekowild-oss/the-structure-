@@ -20,6 +20,9 @@ itself. No accounts, no API keys, no subscription, no expiry.
 | Passcode gate | 4–8 digit passcode after waking, before any phone access |
 | Brain | llama.cpp + Gemma 3 4B Abliterated v2 Q5_K_M (2.8 GB, on-device) |
 | Phone control | AccessibilityService: tap, scroll, type, open apps, unlock |
+| Notifications | Notification listener: reads other apps' notifications aloud, replies by voice (WhatsApp etc.) |
+| Display over apps | Suggestion bar over any app while voice typing |
+| Battery | REQUEST_IGNORE_BATTERY_OPTIMIZATIONS — Setup asks Android to leave the listener alone |
 | Screen-lock unlock | Your PIN/password/pattern, stored encrypted, entered by the service |
 | Voice | System TTS (Telugu preferred) — fast commands never wait on the brain |
 
@@ -103,6 +106,11 @@ either), `local.properties`, keystores, build output. See `.gitignore`.
       password / pattern. Stored encrypted on-device only, never sent
       anywhere. Without it, unlock the phone by hand when it wakes.
    10. **Emergency contact** (optional) — saying "Help" calls this person at once.
+   11. **Notification access** (optional, recommended) — lets Hey Gobi
+       read your notifications aloud and reply in WhatsApp etc. by voice.
+       Android shows a warning when enabling it; that is normal.
+   12. **Display over other apps** (optional) — suggestion bar over any
+       app while voice typing. Without it, suggestions are voice-only.
 4. Tap **"Start listening"**, then **"Mark setup done"** (so the listener
    restarts itself after a reboot).
 
@@ -136,6 +144,9 @@ two small model downloads, and for weather/NJK status in routines.
     battery Unrestricted (step 2 above).
 11. **Reboot** — after a restart, the listener should come back on its own
     (only if you tapped "Mark setup done").
+12. **Notifications** — send yourself a WhatsApp message from another
+    phone, then say "Hey Gobi" → "Notifications chaduvu". It should read
+    it aloud. Then "WhatsApp lo reply hello" — the reply should arrive.
 
 ---
 
@@ -148,6 +159,9 @@ two small model downloads, and for weather/NJK status in routines.
 | "Type cheyyi" | Types what you dictate, with suggestions |
 | "Call Raju" / "Message Raju ..." | Reads back, sends/calls after your "yes" |
 | "WhatsApp lo Raju ki ..." | WhatsApp message, same confirmation |
+| "Notifications chaduvu" / "Ye messages vachayi" | Reads the latest notifications aloud |
+| "WhatsApp lo Raju ki reply hello" | Replies to Raju's WhatsApp message by voice |
+| "Reply hello" | Replies to the latest replyable notification |
 | "Idi enti?" | Reads the current screen aloud |
 | "Good morning" | Routine: weather + schedule + NJK status |
 | "Work mode" | Silences the phone, opens the SAB checklist |
@@ -165,6 +179,12 @@ Chat (in the app) goes to the brain for everything.
 
 ## Honest limits (read this before judging it)
 
+- **Notification access needs a manual enable.** Setup step 11 (or
+  Settings) opens the Android notification-access screen; the warning
+  there is normal. Replies use the notification's own reply button, so
+  they work where the messaging app offers one (WhatsApp, Telegram,
+  SMS apps). Notifications are kept in memory only — never saved,
+  never uploaded.
 - **The brain is slow.** Gemma 3 4B on a phone CPU answers in a few
   seconds per reply. Voice commands never wait on it; only chat does.
 - **Speech recognition is English (Tanglish).** A Telugu speech model
@@ -207,6 +227,7 @@ hey-gobi-app/
 │       ├── audio/                  # AudioCapture, MelFeatures, VoskManager, TtsEngine
 │       ├── voice/                  # WakeWordService, CommandEngine, SpeakerVerifier,
 │       │                           # VoiceEnrollment, VoiceIO, SessionState, SuggestionEngine
+│       ├── notifications/          # GobiNotificationListenerService (read + reply)
 │       ├── control/                # GobiAccessibilityService, ScreenLockUnlocker, AppLauncher
 │       ├── security/               # SecureStore (encrypted), PasscodeManager
 │       ├── service/                # BootReceiver

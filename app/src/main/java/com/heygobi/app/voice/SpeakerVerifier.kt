@@ -176,7 +176,7 @@ class SpeakerVerifier(
             input.use {
                 val outputs = session.run(mapOf(inputName to it))
                 outputs.use { result ->
-                    val out = result[outputName]?.value as? Array<*>
+                    val out = result[outputName].orElse(null)?.value as? Array<*>
                     val row = out?.get(0) as? FloatArray ?: return null
                     MelFeatures.l2Normalize(row)
                 }

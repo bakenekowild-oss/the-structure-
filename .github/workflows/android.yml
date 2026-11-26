@@ -26,6 +26,8 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
+          # Default packages is 'tools platform-tools' — Google removed the
+          # legacy 'tools' package, so sdkmanager fails with exit code 1.
           packages: 'platform-tools'
 
       - name: Install SDK packages
