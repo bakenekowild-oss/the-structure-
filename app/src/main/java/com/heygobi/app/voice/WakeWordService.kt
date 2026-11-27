@@ -86,6 +86,10 @@ class WakeWordService : Service(), VoiceIO {
         // prompt per cooldown so a TV cannot spam passcode screens.
         private const val FALLBACK_MIN_SCORE = 0.40f
         private const val FALLBACK_COOLDOWN_MS = 30_000L
+        // v1.4.1: the mic hears the app's own "Cheppandi" prompt — ignore
+        // anything recognised in this window after listening starts, or
+        // the session ends on its own echo before he can speak.
+        private const val ECHO_GRACE_MS = 2_000L
 
         fun start(context: Context) {
             val intent = Intent(context, WakeWordService::class.java)
@@ -479,12 +483,18 @@ class WakeWordService : Service(), VoiceIO {
             recognizer?.setGrammar("[]")
         } catch (_: Exception) {
         }
+        // v1.4.1: the mic hears the app's OWN voice — the "Cheppandi"
+        // prompt it just spoke. Anything recognised in the first two
+        // seconds is that echo, not him: drop it and keep waiting, or
+        // the session ends on its own echo before he can speak.
+        val graceUntil = SystemClock.elapsedRealtime() + ECHO_GRACE_MS
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             val text = lastCommandText
             if (!text.isNullOrBlank()) {
                 lastCommandText = null
-                return text
+                if (SystemClock.elapsedRealtime() >= graceUntil) return text
+                // Echo of the prompt: drop it, keep listening.
             }
             delay(100)
         }

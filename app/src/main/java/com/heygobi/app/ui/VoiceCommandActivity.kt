@@ -20,6 +20,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -45,10 +48,13 @@ class VoiceCommandActivity : ComponentActivity() {
                 val heard by SessionState.commandHeard.collectAsState()
                 val result by SessionState.commandResult.collectAsState()
 
-                // The service owns the session: when it stops listening,
-                // this screen closes itself.
+                // The service owns the session: this screen closes itself
+                // only after it has SEEN the session listening — never on
+                // the first frame, or a launch race would close it at once.
+                var seenListening by remember { mutableStateOf(false) }
                 LaunchedEffect(listening) {
-                    if (!listening) finish()
+                    if (listening) seenListening = true
+                    else if (seenListening) finish()
                 }
 
                 BackHandler { finish() }

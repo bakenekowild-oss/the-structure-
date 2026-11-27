@@ -8,6 +8,14 @@ itself. No accounts, no subscription, no expiry. An optional free Groq key
 ("Jarvis mode", Settings) makes chat answer in seconds; without it the
 on-device brain answers.
 
+**v1.4.1 — what changed:** the mic screen stopped closing on its own
+echo. The app speaks "Cheppandi" and the mic hears its own voice — Vosk
+took that for his command and the session ended at once, about two seconds
+after the screen appeared. Listening now ignores anything recognised in
+the first two seconds, and the voice-command screen only closes after it
+has actually seen the session listening. Same package and signing key, so
+v1.4.1 installs as an update — no uninstall, no setup redo.
+
 **v1.4 — what changed:** the voice lock stopped rejecting him. The wake
 utterance is short, so it scores lower than the long enrolment samples —
 the default threshold is now **0.55** (was 0.65) and the Settings slider
