@@ -40,10 +40,12 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * Chat with the local brain (v1: button-tap + mic chat).
+ * Chat with the brain (v1: button-tap + mic chat).
  * The brain loads automatically when the model has been imported.
- * Replies stream in token by token; the brain is slow on this phone
- * (a few seconds per reply) — that is an honest limit of the 4B model.
+ * Since v1.2, a saved Groq key ("Jarvis mode") answers first — in seconds —
+ * and the on-device brain is the fallback; without a key the local brain
+ * answers alone. Local replies stream in token by token; the local brain
+ * is slow on this phone (a few seconds per reply).
  */
 @Composable
 fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
@@ -55,6 +57,10 @@ fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
     var brainState by remember { mutableStateOf(BrainState.CHECKING) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+
+    // Chat is allowed when the local brain is ready, or when a Groq key is
+    // saved (Jarvis mode) — Groq answers without the local model loaded.
+    val canChat = brainState == BrainState.READY || app.chatRepository.hasGroqKey()
 
     LaunchedEffect(Unit) {
         val path = app.secureStore.getString(SecureStore.KEY_BRAIN_MODEL_PATH)
@@ -77,7 +83,7 @@ fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
 
     fun send(text: String) {
         val clean = text.trim()
-        if (clean.isEmpty() || brainState != BrainState.READY) return
+        if (clean.isEmpty() || !canChat) return
         input = ""
         scope.launch { app.chatRepository.send(clean) }
     }
@@ -94,27 +100,34 @@ fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 )
             }
-            BrainState.NOT_LOADED -> {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+            BrainState.NOT_LOADED, BrainState.FAILED -> {
+                if (canChat) {
                     Text(
-                        "Brain is not loaded. Import the model in the Setup tab first " +
-                        "(copy it from Termux to Downloads, then import it here).",
-                        modifier = Modifier.padding(12.dp)
+                        "Brain ready — Jarvis mode",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                }
-            }
-            BrainState.FAILED -> {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        "Brain failed to load. Check the model file in Setup and try again.",
-                        modifier = Modifier.padding(12.dp)
-                    )
+                } else if (brainState == BrainState.NOT_LOADED) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "Brain is not loaded. Import the model in the Setup tab first " +
+                            "(copy it from Termux to Downloads, then import it here).",
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                } else {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "Brain failed to load. Check the model file in Setup and try again.",
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
                 }
             }
             BrainState.READY -> {
@@ -150,13 +163,13 @@ fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                 onValueChange = { input = it },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Type a message…") },
-                enabled = brainState == BrainState.READY && !isReplying,
+                enabled = canChat && !isReplying,
                 singleLine = false,
                 maxLines = 4
             )
             IconButton(
                 onClick = {
-                    if (listening || brainState != BrainState.READY) return@IconButton
+                    if (listening || !canChat) return@IconButton
                     listening = true
                     scope.launch {
                         val heard = VoiceInputHelper(app).listenOnce(12_000)
@@ -164,13 +177,13 @@ fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                         if (!heard.isNullOrBlank()) send(heard)
                     }
                 },
-                enabled = brainState == BrainState.READY && !isReplying
+                enabled = canChat && !isReplying
             ) {
                 Icon(Icons.Filled.Mic, contentDescription = "Speak")
             }
             IconButton(
                 onClick = { send(input) },
-                enabled = brainState == BrainState.READY && !isReplying && input.isNotBlank()
+                enabled = canChat && !isReplying && input.isNotBlank()
             ) {
                 Icon(Icons.Filled.Send, contentDescription = "Send")
             }

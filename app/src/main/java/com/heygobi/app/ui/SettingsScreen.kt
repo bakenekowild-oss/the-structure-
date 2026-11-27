@@ -14,6 +14,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -31,10 +32,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.heygobi.app.HeyGobiApp
+import com.heygobi.app.brain.GroqClient
 import com.heygobi.app.data.CommandLogEntity
 import com.heygobi.app.notifications.GobiNotificationListenerService
 import com.heygobi.app.security.SecureStore
@@ -72,6 +75,9 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
     val routines by app.database.routineDao().getAll().collectAsState(initial = emptyList())
     var recent by remember { mutableStateOf<List<CommandLogEntity>>(emptyList()) }
     var cleared by remember { mutableStateOf(false) }
+    var groqKey by remember { mutableStateOf(app.groqClient.savedKey() ?: "") }
+    var groqOn by remember { mutableStateOf(app.groqClient.hasKey()) }
+    var groqMessage by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         recent = app.database.commandLogDao().getRecent(15)
@@ -115,6 +121,72 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                             }
                         )
                         Text("Full listening")
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Jarvis mode (Groq API key)", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Free key from console.groq.com — stays on your phone, sent only to api.groq.com. " +
+                        "Leave empty to use the on-device brain only.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        if (groqOn) {
+                            "On — chat uses Groq first (answers in seconds) and falls back " +
+                            "to the on-device brain when offline."
+                        } else {
+                            "Off — chat uses the on-device brain only (slow, a few seconds per reply)."
+                        },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = groqKey,
+                        onValueChange = { groqKey = it; groqMessage = "" },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("gsk_…") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(onClick = {
+                            app.groqClient.saveKey(groqKey)
+                            groqOn = app.groqClient.hasKey()
+                            groqMessage = if (groqOn) {
+                                "Saved — Jarvis mode is on."
+                            } else {
+                                "Key removed — on-device brain only."
+                            }
+                        }) { Text("Save key") }
+                        OutlinedButton(onClick = {
+                            val keyToTest = groqKey.ifBlank { app.groqClient.savedKey() ?: "" }
+                            groqMessage = "Testing…"
+                            scope.launch {
+                                groqMessage = when (app.groqClient.test(keyToTest)) {
+                                    GroqClient.TestResult.OK -> "Key works — Jarvis mode is on."
+                                    GroqClient.TestResult.NO_KEY -> "Paste a key first."
+                                    GroqClient.TestResult.NO_NETWORK -> "No network right now."
+                                    GroqClient.TestResult.BAD_KEY -> "Key not accepted — check the key at console.groq.com."
+                                    GroqClient.TestResult.FAILED -> "Groq did not answer — try again later."
+                                }
+                            }
+                        }) { Text("Test") }
+                        TextButton(onClick = {
+                            app.groqClient.clearKey()
+                            groqKey = ""
+                            groqOn = false
+                            groqMessage = "Key removed — on-device brain only."
+                        }) { Text("Clear") }
+                    }
+                    if (groqMessage.isNotEmpty()) {
+                        Text(groqMessage, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -236,10 +308,13 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("About & honest limits", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Hey Gobi v1.1 — fully offline, no accounts, no subscriptions, " +
-                        "never expires. Brain: Gemma 3 4B Abliterated v2 (Q5_K_M) on-device.\n\n" +
-                        "• The brain is slow on this phone — a few seconds per reply. " +
-                        "Voice commands never wait on it; only chat does.\n" +
+                        "Hey Gobi v1.2 — on-device brain, with optional Groq cloud brain " +
+                        "(Jarvis mode). No accounts, no subscriptions, never expires. " +
+                        "Brain: Gemma 3 4B Abliterated v2 (Q5_K_M) on-device.\n\n" +
+                        "• With a Groq key saved, chat answers come from Groq in seconds; " +
+                        "without a key, the on-device brain answers — it is slow on this " +
+                        "phone, a few seconds per reply. Voice commands never wait on " +
+                        "the brain; only chat does.\n" +
                         "• Speech recognition is English (Tanglish). A Telugu speech " +
                         "model exists but is too inaccurate to use.\n" +
                         "• Voice verification is similarity matching, not a security " +

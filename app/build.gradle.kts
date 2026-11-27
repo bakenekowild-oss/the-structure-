@@ -17,8 +17,8 @@ android {
         applicationId = "com.heygobi.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.2.0"
 
         // arm64 only: the target phone is arm64-v8a, and llama.cpp is built
         // for that ABI only. This keeps the APK smaller and the CI build fast.
@@ -31,6 +31,20 @@ android {
                 cppFlags += "-std=c++17"
                 arguments += "-DANDROID_STL=c++_shared"
             }
+        }
+    }
+
+    // Committed debug keystore (v1.2): every CI build signs with this same
+    // key, so updates install over the previous build instead of failing
+    // with a signature mismatch. This is a DEBUG key with the public
+    // default password — never use it for a release build.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storeType = "pkcs12"
         }
     }
 

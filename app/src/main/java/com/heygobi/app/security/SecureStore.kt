@@ -29,6 +29,7 @@ class SecureStore(context: Context) {
         const val KEY_EMERGENCY_NAME = "emergency_name"
         const val KEY_EMERGENCY_NUMBER = "emergency_number"
         const val KEY_BRAIN_MODEL_PATH = "brain_model_path"
+        const val KEY_GROQ_API_KEY = "groq_api_key" // user's own free Groq key (Jarvis mode, v1.2)
         const val KEY_VOSK_READY = "vosk_ready"
         const val KEY_SPEAKER_MODEL_READY = "speaker_model_ready"
         const val KEY_WAKE_MODE = "wake_mode" // "grammar" or "full"
