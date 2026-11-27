@@ -3,6 +3,7 @@ package com.heygobi.app.brain
 import com.heygobi.app.data.ChatDao
 import com.heygobi.app.data.ChatMessageEntity
 import com.heygobi.app.security.SecureStore
+import com.heygobi.app.voice.CommandEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,12 +29,17 @@ import java.io.File
  * is not loaded when chat opens — loading the 2.8 GB model on every open
  * ran the phone out of memory and killed the app. It is loaded here, on
  * demand, only when a Groq request fails (or no key is saved at all).
+ *
+ * Since v1.4 typed chat runs through the CommandEngine first: a typed
+ * command ("open youtube") executes on the phone instead of asking the
+ * brain for a link. Only plain chat goes to the brain.
  */
 class ChatRepository(
     private val chatDao: ChatDao,
     private val bridge: LlamaBridge,
     private val groqClient: GroqClient,
-    private val secureStore: SecureStore
+    private val secureStore: SecureStore,
+    private val commandEngineProvider: (() -> CommandEngine?)? = null
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
@@ -87,8 +93,26 @@ class ChatRepository(
     suspend fun send(userText: String): Boolean {
         val trimmed = userText.trim()
         if (trimmed.isEmpty()) return false
-        if (!groqClient.hasKey() && !bridge.isLoaded()) return false
         chatDao.insert(ChatMessageEntity(role = "user", content = trimmed, timestamp = System.currentTimeMillis()))
+
+        // v1.4: typed commands run on the phone first — "open youtube"
+        // opens YouTube instead of asking the brain for a link. Commands
+        // never need a brain, so this runs before the brain check below.
+        val commandResult = try {
+            commandEngineProvider?.invoke()?.tryCommand(trimmed)
+        } catch (_: Exception) {
+            null
+        }
+        if (commandResult != null) {
+            val replyText = humanizeCommandResult(commandResult)
+            _messages.value = _messages.value + Message("assistant", replyText)
+            chatDao.insert(
+                ChatMessageEntity(role = "assistant", content = replyText, timestamp = System.currentTimeMillis())
+            )
+            return true
+        }
+
+        if (!groqClient.hasKey() && !bridge.isLoaded()) return false
 
         _isReplying.value = true
         // Show an empty assistant bubble immediately so the UI feels alive.
@@ -174,6 +198,19 @@ class ChatRepository(
 
     fun stopReply() {
         bridge.stop()
+    }
+
+    /**
+     * v1.4: turns a CommandEngine action string ("open:com.foo",
+     * "fail:app_not_found", "stop", ...) into one honest chat line.
+     * The engine already speaks the full confirmation aloud.
+     */
+    private fun humanizeCommandResult(action: String): String = when {
+        action.startsWith("open:") -> "Done — app open chesa."
+        action == "stop" -> "Sare."
+        action.startsWith("fail:") -> "Sorry, aa pani cheyyalekapoyanu."
+        action.startsWith("screen:") -> "Screen chusa."
+        else -> "Done."
     }
 
     suspend fun clearHistory() {

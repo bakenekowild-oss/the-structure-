@@ -95,6 +95,20 @@
             android:turnScreenOn="true"
             android:theme="@style/Theme.HeyGobi" />
 
+        <!--
+          Voice-command screen (v1.4): opened by the WakeWordService after
+          the passcode passes, so the user sees the app listening, what it
+          heard, and the result. Same lock-screen attrs as the passcode
+          gate; only the service starts it.
+        -->
+        <activity
+            android:name=".ui.VoiceCommandActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.HeyGobi" />
+
         <!-- Always-on listening. foregroundServiceType="microphone" is what
              allows mic capture from the lock screen and with the screen off. -->
         <service

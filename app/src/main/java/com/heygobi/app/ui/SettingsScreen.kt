@@ -252,7 +252,7 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                     Text(
                         "How close a voice must match yours to wake the phone. " +
                         "Higher = stricter (fewer false wakes, but your voice " +
-                        "must be clear). Default 0.65.",
+                        "must be clear). Default 0.55.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text("Threshold: ${"%.2f".format(threshold)}")
@@ -260,8 +260,8 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                         value = threshold,
                         onValueChange = { threshold = it },
                         onValueChangeFinished = { app.speakerVerifier.setThreshold(threshold) },
-                        valueRange = 0.50f..0.85f,
-                        steps = 6
+                        valueRange = 0.40f..0.85f,
+                        steps = 8
                     )
                     OutlinedButton(onClick = {
                         app.ttsEngine.speak("The Structure ready. Nenu vinipisthunnanu.")
@@ -386,7 +386,7 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("About & honest limits", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "The Structure v1.3 — on-device brain, with optional Groq cloud brain " +
+                        "The Structure v1.4 — on-device brain, with optional Groq cloud brain " +
                         "(Jarvis mode). No accounts, no subscriptions, never expires. " +
                         "Brain: Gemma 3 4B Abliterated v2 (Q5_K_M) on-device.\n\n" +
                         "• Wake word is \"The Structure\" — say it anywhere to wake the " +

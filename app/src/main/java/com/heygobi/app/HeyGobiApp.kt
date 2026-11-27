@@ -9,7 +9,9 @@ import com.heygobi.app.brain.LlamaBridge
 import com.heygobi.app.data.AppDatabase
 import com.heygobi.app.security.PasscodeManager
 import com.heygobi.app.security.SecureStore
+import com.heygobi.app.voice.CommandEngine
 import com.heygobi.app.voice.SpeakerVerifier
+import com.heygobi.app.voice.VoiceIO
 
 /**
  * The Structure — application entry point.
@@ -43,6 +45,15 @@ class HeyGobiApp : Application() {
     lateinit var ttsEngine: TtsEngine
         private set
 
+    /**
+     * v1.4: the command engine for TYPED chat. Same engine as the voice
+     * path, but with a chat VoiceIO: confirmations speak aloud via TTS
+     * (like voice), while listen() always returns null — so a
+     * confirmation that needs his spoken "yes" safely declines instead
+     * of hanging. Created lazily on the first typed command.
+     */
+    val chatCommandEngine: CommandEngine by lazy { CommandEngine(ChatVoiceIO(this), this) }
+
     override fun onCreate() {
         super.onCreate()
         secureStore = SecureStore(this)
@@ -50,7 +61,7 @@ class HeyGobiApp : Application() {
         database = AppDatabase.get(this)
         llamaBridge = LlamaBridge(this)
         groqClient = GroqClient(this, secureStore)
-        chatRepository = ChatRepository(database.chatDao(), llamaBridge, groqClient, secureStore)
+        chatRepository = ChatRepository(database.chatDao(), llamaBridge, groqClient, secureStore) { chatCommandEngine }
         voskManager = VoskManager(this)
         speakerVerifier = SpeakerVerifier(this, secureStore)
         ttsEngine = TtsEngine(this)
@@ -59,5 +70,17 @@ class HeyGobiApp : Application() {
     override fun onTerminate() {
         super.onTerminate()
         ttsEngine.shutdown()
+    }
+}
+
+/**
+ * v1.4: VoiceIO for typed chat. Confirmations speak aloud via TTS, just
+ * like the voice path; listen() always returns null, so any confirmation
+ * that needs his spoken "yes" safely declines instead of hanging.
+ */
+private class ChatVoiceIO(private val app: HeyGobiApp) : VoiceIO {
+    override suspend fun listen(timeoutMs: Long): String? = null
+    override fun speak(text: String) {
+        app.ttsEngine.speak(text)
     }
 }

@@ -55,6 +55,9 @@ class CommandEngine(
 
     companion object {
         private const val TAG = "HeyGobiCmd"
+        // v1.4: sentinel returned by dispatch() when the text is not a
+        // command and the brain fallback is disabled (typed-chat path).
+        private const val NOT_A_COMMAND = "__not_a_command__"
         private val YES_WORDS = listOf("yes", "avunu", "sare", "ok", "cheyyi", "pampu", "correct")
         private val NO_WORDS = listOf("no", "vaddu", "kadu", "odhu", "cancel", "aapu")
     }
@@ -66,33 +69,54 @@ class CommandEngine(
         Log.i(TAG, "command: $n")
         try {
             val action = dispatch(n, text)
-            app.database.commandLogDao().insert(
-                CommandLogEntity(
-                    command = text,
-                    action = action,
-                    timestamp = System.currentTimeMillis(),
-                    success = !action.startsWith("fail")
-                )
-            )
+            logCommand(text, action)
         } catch (e: Exception) {
             Log.e(TAG, "command failed", e)
             voice.speak("Sorry, aa pani cheyyalekapoyanu")
-            app.database.commandLogDao().insert(
-                CommandLogEntity(
-                    command = text,
-                    action = "fail:exception",
-                    timestamp = System.currentTimeMillis(),
-                    success = false
-                )
-            )
+            logCommand(text, "fail:exception")
         }
+    }
+
+    /**
+     * v1.4: typed-chat path. Runs [rawText] through the command matcher
+     * WITHOUT the brain fallback: returns the action string when the
+     * text is a command (open app, call, volume, ...), or null when it
+     * is plain chat — the caller then asks the brain instead. Never
+     * speaks a brain answer into the chat flow.
+     */
+    suspend fun tryCommand(rawText: String): String? {
+        val text = rawText.trim()
+        if (text.isEmpty()) return null
+        val n = normalize(text)
+        Log.i(TAG, "typed command check: $n")
+        return try {
+            val action = dispatch(n, text, allowBrain = false)
+            if (action == NOT_A_COMMAND) return null
+            logCommand(text, action)
+            action
+        } catch (e: Exception) {
+            Log.e(TAG, "typed command failed", e)
+            logCommand(text, "fail:exception")
+            "fail:exception"
+        }
+    }
+
+    private suspend fun logCommand(text: String, action: String) {
+        app.database.commandLogDao().insert(
+            CommandLogEntity(
+                command = text,
+                action = action,
+                timestamp = System.currentTimeMillis(),
+                success = !action.startsWith("fail")
+            )
+        )
     }
 
     // ------------------------------------------------------------------
     // Dispatch
     // ------------------------------------------------------------------
 
-    private suspend fun dispatch(n: String, raw: String): String {
+    private suspend fun dispatch(n: String, raw: String, allowBrain: Boolean = true): String {
         return when {
             n == "help" || n.contains("help") && n.length < 12 -> emergency()
             n.startsWith("idi enti") || n.startsWith("what is this") || n.startsWith("screen lo enti") -> screenSummary()
@@ -128,7 +152,7 @@ class CommandEngine(
                 voice.speak("Sare")
                 "stop"
             }
-            else -> askBrain(raw)
+            else -> if (allowBrain) askBrain(raw) else NOT_A_COMMAND
         }
     }
 

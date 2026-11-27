@@ -17,8 +17,8 @@ android {
         applicationId = "com.heygobi.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.3.0"
+        versionCode = 4
+        versionName = "1.4.0"
 
         // arm64 only: the target phone is arm64-v8a, and llama.cpp is built
         // for that ABI only. This keeps the APK smaller and the CI build fast.

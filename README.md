@@ -8,6 +8,20 @@ itself. No accounts, no subscription, no expiry. An optional free Groq key
 ("Jarvis mode", Settings) makes chat answer in seconds; without it the
 on-device brain answers.
 
+**v1.4 — what changed:** the voice lock stopped rejecting him. The wake
+utterance is short, so it scores lower than the long enrolment samples —
+the default threshold is now **0.55** (was 0.65) and the Settings slider
+goes down to **0.40**. A near-miss voice (score 0.40+) no longer dies
+silently: it falls back to the passcode, so the voiceprint can never lock
+him out of his own phone — and Settings now shows the score behind every
+rejection ("voice_rejected (0.58/0.55)"). After the passcode, a
+voice-command screen opens (big mic, "Vinipisthunnanu… Cheppandi, Guruvu
+garu", live heard text, result) so he SEES the app listening. Typed chat
+now runs through the CommandEngine first: "open youtube" OPENS YouTube
+instead of asking the brain for a link. And the app icon is a bold gold
+**"S" monogram** — the temple/house mark is gone. Same package and
+signing key, so v1.4 installs as an update — no uninstall, no setup redo.
+
 **v1.3 — what changed:** the app is now **The Structure** and the wake word
 is **"The Structure"** too. "The" is a weak word that speech recognition
 often mumbles or drops, so the app also answers to **"da structure"** and

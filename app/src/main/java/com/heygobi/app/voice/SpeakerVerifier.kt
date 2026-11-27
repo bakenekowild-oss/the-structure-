@@ -30,7 +30,7 @@ import java.security.MessageDigest
  *   averaged and L2-normalised into one centroid, stored encrypted.
  * - Verification: the wake utterance itself ("The Structure") is embedded and
  *   compared with the centroid by cosine similarity. A score at or above
- *   the threshold (default 0.65) means "this is him".
+ *   the threshold (default 0.55) means "this is him".
  *
  * The embedding is text-independent: it captures the voice, not the
  * words. Changing the wake phrase does not need re-enrollment — the
@@ -51,7 +51,7 @@ class SpeakerVerifier(
         const val MODEL_FILE_NAME = "voxceleb_ECAPA512_LM.onnx"
         const val MODEL_SHA256 = "d71b85d9b48058ef68004f04f1b78acebefb9dfcf542e19b976a12a5ad1f10b0"
         const val MODEL_BYTES = 24_900_000L // approximate; the SHA-256 is the real check
-        const val DEFAULT_THRESHOLD = 0.65f
+        const val DEFAULT_THRESHOLD = 0.55f
         const val EMBEDDING_DIM = 192
         const val ENROLLMENT_SAMPLES = 3
         const val VERIFY_SECONDS = 2.5f
@@ -72,7 +72,7 @@ class SpeakerVerifier(
     fun threshold(): Float = store.getFloat(SecureStore.KEY_VOICE_THRESHOLD, DEFAULT_THRESHOLD)
 
     fun setThreshold(value: Float) {
-        store.putFloat(SecureStore.KEY_VOICE_THRESHOLD, value.coerceIn(0.5f, 0.85f))
+        store.putFloat(SecureStore.KEY_VOICE_THRESHOLD, value.coerceIn(0.40f, 0.85f))
     }
 
     /**

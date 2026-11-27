@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.heygobi.app.HeyGobiApp
@@ -22,6 +23,7 @@ import com.heygobi.app.data.CommandLogEntity
 import com.heygobi.app.security.SecureStore
 import com.heygobi.app.ui.MainActivity
 import com.heygobi.app.ui.PasscodeActivity
+import com.heygobi.app.ui.VoiceCommandActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +78,14 @@ class WakeWordService : Service(), VoiceIO {
         const val PASSCODE_TIMEOUT_MS = 30_000L
         const val COMMAND_TIMEOUT_MS = 12_000L
         const val CONFIRM_TIMEOUT_MS = 8_000L
+        // v1.4: a wake whose voice is CLOSE to his (score >= this) falls
+        // back to the passcode instead of dying silently — a short wake
+        // utterance scores lower than the long enrolment samples, so a
+        // near-miss is almost always him. Far below this it is noise or
+        // a stranger and stays a silent reject. At most one fallback
+        // prompt per cooldown so a TV cannot spam passcode screens.
+        private const val FALLBACK_MIN_SCORE = 0.40f
+        private const val FALLBACK_COOLDOWN_MS = 30_000L
 
         fun start(context: Context) {
             val intent = Intent(context, WakeWordService::class.java)
@@ -107,6 +117,9 @@ class WakeWordService : Service(), VoiceIO {
 
     @Volatile
     private var lastCommandText: String? = null
+
+    @Volatile
+    private var lastFallbackPromptMs: Long = 0L
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
@@ -258,6 +271,12 @@ class WakeWordService : Service(), VoiceIO {
      * the service: any unexpected failure is logged and the listener
      * goes back to listening instead of killing the app. (v1.3: the app
      * used to close itself on wake.)
+     *
+     * v1.4: a near-miss voice (close to his, below the threshold) no
+     * longer dies silently — it falls back to the passcode, so a
+     * finicky voiceprint can never lock him out of his own phone. The
+     * score is written into the command log so Settings shows WHY a
+     * wake was rejected (e.g. "voice_rejected (0.58/0.55)").
      */
     private suspend fun handleWake() {
         try {
@@ -271,22 +290,40 @@ class WakeWordService : Service(), VoiceIO {
             val pcm = withContext(Dispatchers.Default) { capture.recentAudio(SpeakerVerifier.VERIFY_SECONDS) }
             val score = withContext(Dispatchers.Default) { verifier.verify(pcm) }
             if (score < 0) {
+                // Verification itself failed (model/audio error): the
+                // voice gate cannot judge, so the passcode decides.
                 Log.w(TAG, "Voice verification unavailable (score=$score)")
-                backToListening()
+                if (!app.passcodeManager.hasPasscode()) {
+                    Log.i(TAG, "No passcode set — skipping passcode gate")
+                    onPasscodeOk()
+                } else if (offerPasscodeFallback("Voice check avvaledhu — passcode cheppandi")) {
+                    onPasscodeOk()
+                } else {
+                    backToListening()
+                }
                 return
             }
             if (!verifier.isMatch(score)) {
-                // Stranger: say nothing, open nothing. Log locally only.
+                // Log the score so the reason is visible in Settings.
+                val scoreText = "%.2f".format(score) + "/" + "%.2f".format(verifier.threshold())
                 Log.w(TAG, "Voice rejected (score=$score)")
                 app.database.commandLogDao().insert(
                     CommandLogEntity(
                         command = "wake",
-                        action = "voice_rejected",
+                        action = "voice_rejected ($scoreText)",
                         timestamp = System.currentTimeMillis(),
                         success = false
                     )
                 )
-                backToListening()
+                if (score >= FALLBACK_MIN_SCORE &&
+                    offerPasscodeFallback("Voice sarigga match kaledhu — passcode cheppandi")
+                ) {
+                    onPasscodeOk()
+                } else {
+                    // Far from his voice: stranger or noise. Say nothing,
+                    // open nothing.
+                    backToListening()
+                }
                 return
             }
             Log.i(TAG, "Voice verified (score=$score)")
@@ -298,29 +335,10 @@ class WakeWordService : Service(), VoiceIO {
                 onPasscodeOk()
                 return
             }
-            state = State.WAITING_PASSCODE
-            SessionState.resetPasscodeResult()
-            speak("Passcode cheppandi")
-            val passIntent = Intent(this, PasscodeActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            try {
-                startActivity(passIntent)
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not open passcode screen", e)
+            if (awaitPasscode()) {
+                onPasscodeOk()
+            } else {
                 backToListening()
-                return
-            }
-            val result = withTimeoutOrNull(PASSCODE_TIMEOUT_MS) {
-                SessionState.passcodeResult.first { it != null }
-            }
-            when (result) {
-                SessionState.PasscodeResult.OK -> onPasscodeOk()
-                SessionState.PasscodeResult.FAILED -> {
-                    speak("Passcode thappu")
-                    backToListening()
-                }
-                else -> backToListening() // timeout or null
             }
         } catch (e: CancellationException) {
             throw e
@@ -328,6 +346,51 @@ class WakeWordService : Service(), VoiceIO {
             // Nothing in activation may kill the app: log and listen again.
             Log.e(TAG, "Wake handling failed", e)
             backToListening()
+        }
+    }
+
+    /**
+     * Offers the passcode screen as a fallback when the voice gate
+     * could not confirm him. Returns true only when he enters the
+     * correct passcode in time. At most one prompt per cooldown, so a
+     * TV or a noisy room cannot spam passcode screens.
+     */
+    private suspend fun offerPasscodeFallback(spoken: String): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastFallbackPromptMs < FALLBACK_COOLDOWN_MS) return false
+        lastFallbackPromptMs = now
+        if (!app.passcodeManager.hasPasscode()) return false
+        return awaitPasscode(spoken)
+    }
+
+    /**
+     * Shows the passcode screen and waits for the result. True only on
+     * a correct passcode; false on a wrong one, timeout, or any failure
+     * to open the screen.
+     */
+    private suspend fun awaitPasscode(prompt: String = "Passcode cheppandi"): Boolean {
+        state = State.WAITING_PASSCODE
+        SessionState.resetPasscodeResult()
+        speak(prompt)
+        val passIntent = Intent(this, PasscodeActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            startActivity(passIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not open passcode screen", e)
+            return false
+        }
+        val result = withTimeoutOrNull(PASSCODE_TIMEOUT_MS) {
+            SessionState.passcodeResult.first { it != null }
+        }
+        return when (result) {
+            SessionState.PasscodeResult.OK -> true
+            SessionState.PasscodeResult.FAILED -> {
+                speak("Passcode thappu")
+                false
+            }
+            else -> false // timeout or null
         }
     }
 
@@ -358,15 +421,31 @@ class WakeWordService : Service(), VoiceIO {
                 }
             }
             state = State.COMMAND
+            // v1.4: open the voice-command screen so he SEES the app
+            // listening, what it heard, and the result — no more
+            // invisible listening while the Setup screen sits there.
+            SessionState.resetCommandUi()
+            SessionState.setCommandListening(true)
+            try {
+                startActivity(Intent(this, VoiceCommandActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not open voice-command screen", e)
+            }
             speak("Cheppandi")
             val text = listen(COMMAND_TIMEOUT_MS)
             if (text.isNullOrBlank()) {
                 backToListening()
                 return
             }
+            SessionState.setCommandHeard(text)
             withContext(Dispatchers.Default) {
                 commandEngine.handle(text)
             }
+            SessionState.setCommandResult("Ayyindhi ✓")
+            // Let him see the result before the screen closes.
+            delay(1500)
             backToListening()
         } catch (e: CancellationException) {
             throw e
@@ -379,6 +458,8 @@ class WakeWordService : Service(), VoiceIO {
     private fun backToListening() {
         state = State.LISTENING
         lastCommandText = null
+        // v1.4: closes the voice-command screen, if it is open.
+        SessionState.setCommandListening(false)
         try {
             // "[]" resets the recognizer to its default (full) graph;
             // a grammar string re-arms grammar mode.
