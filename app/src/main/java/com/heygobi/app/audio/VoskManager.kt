@@ -184,6 +184,34 @@ class VoskManager(private val context: Context) {
 
     fun finalResult(recognizer: Recognizer): String = recognizer.result
 
+    /**
+     * v1.4.4: one final result, parsed once — the text AND the
+     * word-level confidence. The recognizer's result JSON carries a
+     * "result" array of {word, conf, start, end}; the average conf
+     * tells whether Vosk actually heard words or just mumbled noise.
+     * When the JSON carries no word entries, confidence is 1 — trust
+     * the text (older result shapes have no confidences at all).
+     */
+    data class FinalResult(val text: String, val avgConfidence: Float)
+
+    fun parseFinalResult(json: String): FinalResult = runCatching {
+        val obj = JSONObject(json)
+        val text = obj.optString("text", "")
+        val arr = obj.optJSONArray("result")
+        var sum = 0f
+        var count = 0
+        if (arr != null) {
+            for (i in 0 until arr.length()) {
+                val conf = arr.optJSONObject(i)?.optDouble("conf", -1.0) ?: -1.0
+                if (conf >= 0) {
+                    sum += conf.toFloat()
+                    count++
+                }
+            }
+        }
+        FinalResult(text, if (count > 0) sum / count else 1f)
+    }.getOrDefault(FinalResult("", 0f))
+
     /** Normalises recognised text and checks for the wake phrase. */
     fun containsWakeWord(text: String): Boolean {
         val norm = " " + text.lowercase()

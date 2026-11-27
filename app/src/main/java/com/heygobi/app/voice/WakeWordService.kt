@@ -90,6 +90,9 @@ class WakeWordService : Service(), VoiceIO {
         // anything recognised in this window after listening starts, or
         // the session ends on its own echo before he can speak.
         private const val ECHO_GRACE_MS = 2_000L
+        // v1.4.4: word-level confidence floor for a command final — below
+        // this, Vosk mumbled noise, not his words; keep listening.
+        private const val MIN_COMMAND_CONFIDENCE = 0.30f
 
         fun start(context: Context) {
             val intent = Intent(context, WakeWordService::class.java)
@@ -252,7 +255,13 @@ class WakeWordService : Service(), VoiceIO {
                     false
                 }
                 if (finalReady) {
-                    lastCommandText = vosk.finalText(rec).trim()
+                    val parsed = vosk.parseFinalResult(vosk.finalResult(rec))
+                    // v1.4.4: word-level confidence — a mumbled fragment
+                    // (noise, echo) must never end the session as if it
+                    // were his command; keep listening instead.
+                    if (parsed.avgConfidence >= MIN_COMMAND_CONFIDENCE) {
+                        lastCommandText = parsed.text.trim()
+                    }
                 }
             }
             else -> {

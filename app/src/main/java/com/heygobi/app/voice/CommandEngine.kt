@@ -160,7 +160,7 @@ class CommandEngine(
             n.startsWith("routine create") || n == "routine create cheyyi" -> createRoutineByVoice()
             n.startsWith("routine ") -> runRoutine(n.removePrefix("routine ").trim())
             n == "good morning" || n == "good morning cheyyi" -> runRoutine("good morning")
-            n.startsWith("open ") || n.endsWith(" open cheyyi") || n.endsWith(" open") -> openApp(n, raw)
+            n.startsWith("open ") || n.endsWith(" open cheyyi") || n.endsWith(" open") || isOpenAppCommand(n) -> openApp(n, raw)
             n.startsWith("type ") -> typeText(raw.substringAfter("type ", "").trim())
             n.startsWith("call ") -> callContact(n.removePrefix("call ").trim())
             n.startsWith("notifications chaduvu") || n.startsWith("notification chaduvu") ||
@@ -198,6 +198,31 @@ class CommandEngine(
             .replace(Regex("[^a-z0-9 ]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
+
+    // v1.4.4: Tanglish filler words the small Vosk model mangles, plus
+    // the ways it mishears them — stripped before matching so
+    // "youtube open chay" still opens YouTube.
+    private val FILLER_WORDS = setOf(
+        "cheyyi", "chey", "cheyyandi", "cheyandi", "cheppu", "cheppandi",
+        "chay", "chai", "che", "cheyi", "cheyy", "andi", "ra", "please",
+        "naaku", "nenu", "koncham", "ipudu", "ippudu", "oka", "okasari", "kindly"
+    )
+
+    private fun stripFillers(n: String): String =
+        n.split(" ").filter { it !in FILLER_WORDS }.joinToString(" ").trim()
+
+    /**
+     * v1.4.4: "youtube open cheyyi" / "youtube open chay" — the app name
+     * and "open" in any order, with filler words ignored. The name must
+     * match a real installed app, so a stray "open" never fires it.
+     */
+    private fun isOpenAppCommand(n: String): Boolean {
+        val tokens = stripFillers(n).split(" ").filter { it.isNotEmpty() }
+        if ("open" !in tokens) return false
+        val name = tokens.filter { it != "open" }.joinToString(" ")
+        if (name.isEmpty()) return false
+        return launcher.findApp(name) != null
+    }
 
     // ------------------------------------------------------------------
     // Confirmation
@@ -297,7 +322,7 @@ class CommandEngine(
     }
 
     private suspend fun openApp(n: String, raw: String): String {
-        val name = n.removePrefix("open ").removeSuffix(" open cheyyi").removeSuffix(" open").trim()
+        val name = stripFillers(n).removePrefix("open ").removeSuffix(" open").trim()
         if (name.isEmpty()) {
             voice.speak("Ye app open cheyyali?")
             return "fail:no_app_name"

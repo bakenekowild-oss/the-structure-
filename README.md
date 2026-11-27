@@ -8,6 +8,20 @@ itself. No accounts, no subscription, no expiry. An optional free Groq key
 ("Jarvis mode", Settings) makes chat answer in seconds; without it the
 on-device brain answers.
 
+**v1.4.4 — what changed:** the app finally hears him. The chat mic used
+to run everything through the tiny on-device Vosk model, which mangled
+his words into "tied around on" / "kira a loud mouth" — now the chat mic
+uses Google's Indian-English recognizer ("en-IN") first, with Vosk only
+as the offline fallback. Word-level confidence is now read from Vosk's
+results: a mumbled fragment never ends a voice session as if it were a
+command. And commands are matched the way he speaks them — "youtube open
+cheyyi", "youtube open chay", "open youtube please" all open YouTube,
+because filler words are stripped and "open" + app name match in any
+order. This build includes everything from v1.4.2 and v1.4.3 (chat–voice
+connection, voice commands recorded in Chat, floating overlay panel).
+Same package and signing key, so v1.4.4 installs as an update — no
+uninstall, no setup redo.
+
 **v1.4.3 — what changed:** chat and voice are one record now, and the
 voice panel floats over apps. Every spoken command and its result are
 written into Chat, so the chat history shows what the voice assistant

@@ -386,7 +386,7 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("About & honest limits", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "The Structure v1.4.3 — on-device brain, with optional Groq cloud brain " +
+                        "The Structure v1.4.4 — on-device brain, with optional Groq cloud brain " +
                         "(Jarvis mode). No accounts, no subscriptions, never expires. " +
                         "Brain: Gemma 3 4B Abliterated v2 (Q5_K_M) on-device.\n\n" +
                         "• Wake word is \"The Structure\" — say it anywhere to wake the " +
