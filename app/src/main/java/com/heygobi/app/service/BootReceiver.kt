@@ -7,7 +7,7 @@ import com.heygobi.app.security.SecureStore
 import com.heygobi.app.voice.WakeWordService
 
 /**
- * Restarts "Hey Gobi" listening after a reboot, but only if setup was
+ * Restarts "The Structure" listening after a reboot, but only if setup was
  * completed. If the system does not let the service start from boot, the
  * user just opens the app once — the setup screen offers the same start.
  */

@@ -10,7 +10,10 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,13 +21,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -42,8 +49,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -51,6 +61,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.heygobi.app.HeyGobiApp
+import com.heygobi.app.R
 import com.heygobi.app.audio.AudioCapture
 import com.heygobi.app.notifications.GobiNotificationListenerService
 import com.heygobi.app.security.SecureStore
@@ -117,15 +128,34 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text("Hey Gobi — Setup", style = MaterialTheme.typography.headlineSmall)
-            Text(
-                "One-time setup. Do each step once; the app remembers it forever.",
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_launcher_foreground),
+                        contentDescription = "The Structure",
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(38.dp)
+                    )
+                }
+                Column(Modifier.padding(start = 14.dp)) {
+                    Text("The Structure — Setup", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        "One-time setup. Do each step once; the app remembers it forever.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
 
         item {
@@ -157,8 +187,8 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         item {
             SetupStep(
                 title = "3. Accessibility service (Required)",
-                description = "Lets Hey Gobi tap, scroll, type and unlock the screen " +
-                    "on your voice. Settings → Accessibility → Hey Gobi control → On.",
+                description = "Lets The Structure tap, scroll, type and unlock the screen " +
+                    "on your voice. Settings → Accessibility → The Structure control → On.",
                 done = a11yOk,
                 actionLabel = if (a11yOk) "Enabled ✓" else "Open Accessibility settings",
                 onAction = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
@@ -181,7 +211,7 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
             SetupStep(
                 title = "5. Voice spotter model (Required)",
                 description = "Vosk small English model (~40 MB). One-time download, " +
-                    "then fully offline. Used to hear \"Hey Gobi\".",
+                    "then fully offline. Used to hear \"The Structure\".",
                 done = voskOk,
                 actionLabel = if (voskOk) "Downloaded ✓" else "Download Vosk model",
                 onAction = {
@@ -223,7 +253,7 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         item {
             SetupStep(
                 title = "7. Voice enrollment (Required)",
-                description = "Say \"Hey Gobi\" 3 times so the app learns your voice. " +
+                description = "Say \"The Structure\" 3 times so the app learns your voice. " +
                     "Only your voice will wake it afterwards.",
                 done = enrolled,
                 actionLabel = if (enrolled) "Enrolled ✓" else "Enroll my voice",
@@ -233,7 +263,7 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         item {
             SetupStep(
                 title = "8. App passcode (Required)",
-                description = "4–8 digit passcode. After waking, Hey Gobi asks for " +
+                description = "4–8 digit passcode. After waking, The Structure asks for " +
                     "this before taking phone access.",
                 done = passcodeOk,
                 actionLabel = if (passcodeOk) "Set ✓" else "Set passcode",
@@ -243,7 +273,7 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         item {
             SetupStep(
                 title = "9. Screen-lock credential (Optional, recommended)",
-                description = "Your phone's own PIN / password / pattern, so Hey Gobi " +
+                description = "Your phone's own PIN / password / pattern, so The Structure " +
                     "can unlock the lock screen for you. Stored encrypted " +
                     "on-device only, never sent anywhere. Without it, " +
                     "unlock the phone by hand when it wakes.",
@@ -264,7 +294,7 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         item {
             SetupStep(
                 title = "11. Notification access (Optional, recommended)",
-                description = "Hey Gobi mee notifications chadivi, WhatsApp lanti apps " +
+                description = "The Structure mee notifications chadivi, WhatsApp lanti apps " +
                     "lo reply ivvagalthundhi. Notifications phone lone matrame " +
                     "untayi, ekkadiki upload avvavu. Android warning chupisthundhi — " +
                     "adi normal, endukante app notifications chaduvuthundhi kabatti.",
@@ -308,18 +338,20 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = if (readyToListen) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceVariant
+                    else MaterialTheme.colorScheme.surfaceContainerHigh
                 ),
+                shape = MaterialTheme.shapes.large,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(Modifier.padding(12.dp)) {
+                Column(Modifier.padding(16.dp)) {
                     Text(
-                        if (listeningOk) "Listening is ON — say \"Hey Gobi\""
+                        if (listeningOk) "Listening is ON — say \"The Structure\""
                         else if (readyToListen) "All required steps done — start listening"
                         else "Finish the required steps above to start listening",
                         style = MaterialTheme.typography.titleMedium
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = {
@@ -327,15 +359,19 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                                 else WakeWordService.start(context)
                                 tick++
                             },
-                            enabled = listeningOk || readyToListen
+                            enabled = listeningOk || readyToListen,
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             Text(if (listeningOk) "Stop listening" else "Start listening")
                         }
                         if (listeningOk || readyToListen) {
-                            OutlinedButton(onClick = {
-                                app.secureStore.putBoolean(SecureStore.KEY_SETUP_DONE, true)
-                                tick++
-                            }) {
+                            OutlinedButton(
+                                onClick = {
+                                    app.secureStore.putBoolean(SecureStore.KEY_SETUP_DONE, true)
+                                    tick++
+                                },
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
                                 Text("Mark setup done")
                             }
                         }
@@ -344,7 +380,8 @@ fun SetupScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                         "Setup done = the listener restarts itself after a reboot. " +
                         "You can change anything later in Settings.",
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 8.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp)
                     )
                 }
             }
@@ -404,23 +441,52 @@ private fun SetupStep(
     actionLabel: String,
     onAction: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
+    // Titles are "N. Name" — the number goes in the gold circle, the name
+    // is shown without it.
+    val stepLabel = title.substringBefore(".").takeIf { it.all(Char::isDigit) } ?: ""
+    val displayTitle = title.substringAfter(". ", title)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (done) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceContainerHigh
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (done) "✓" else stepLabel,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (done) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Text(
-                    text = if (done) "✓ " else "○ ",
+                    displayTitle,
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (done) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.padding(start = 12.dp)
                 )
-                Text(title, style = MaterialTheme.typography.titleMedium)
             }
-            Text(description, style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 4.dp))
+            Text(
+                description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp)
+            )
             Button(
                 onClick = onAction,
                 enabled = !done || actionLabel.contains("Import") || actionLabel.contains("Enroll"),
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 12.dp),
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Text(actionLabel)
             }
@@ -443,11 +509,32 @@ private fun EnrollmentScreen(app: HeyGobiApp, onDone: () -> Unit) {
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Voice enrollment", style = MaterialTheme.typography.headlineSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_launcher_foreground),
+                    contentDescription = "The Structure",
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+            Text(
+                "Voice enrollment",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(start = 12.dp)
+            )
+        }
         Text(
-            "Say \"Hey Gobi\" clearly, 3 times. Hold the phone normally, " +
+            "Say \"The Structure\" clearly, 3 times. Hold the phone normally, " +
             "in a quiet room. This is what keeps anyone else's voice out.",
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         when (phase) {
             0 -> {
@@ -477,18 +564,18 @@ private fun EnrollmentScreen(app: HeyGobiApp, onDone: () -> Unit) {
                         }
                         phase = 4
                     }
-                }) { Text("Start — say \"Hey Gobi\" 3 times") }
-                OutlinedButton(onClick = onDone) { Text("Back") }
+                }) { Text("Start — say \"The Structure\" 3 times") }
+                OutlinedButton(onClick = onDone, shape = RoundedCornerShape(16.dp)) { Text("Back") }
             }
             in 1..3 -> {
-                CircularProgressIndicator()
-                Text("Listening… say \"Hey Gobi\" (sample $phase of 3)")
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                Text("Listening… say \"The Structure\" (sample $phase of 3)")
             }
             4 -> {
                 if (quality != null) {
                     Text(
                         "Voice enrolled! Quality ${(quality!! * 100).toInt()}% — " +
-                        "only your voice will wake Hey Gobi now.",
+                        "only your voice will wake The Structure now.",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Button(onClick = {
@@ -519,7 +606,7 @@ private fun PasscodeSetDialog(app: HeyGobiApp, onDismiss: () -> Unit) {
         title = { Text("Set app passcode") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("4–8 digits. Hey Gobi asks for this after waking, before taking phone access.")
+                Text("4–8 digits. The Structure asks for this after waking, before taking phone access.")
                 OutlinedTextField(
                     value = first, onValueChange = { first = it.filter(Char::isDigit).take(8) },
                     label = { Text("Passcode") },
@@ -563,7 +650,7 @@ private fun LockCredentialDialog(app: HeyGobiApp, onDismiss: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "Your phone's own lock credential. Stored encrypted on-device only. " +
-                    "Hey Gobi uses it to unlock the lock screen after your voice + passcode. " +
+                    "The Structure uses it to unlock the lock screen after your voice + passcode. " +
                     "It is never sent anywhere."
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {

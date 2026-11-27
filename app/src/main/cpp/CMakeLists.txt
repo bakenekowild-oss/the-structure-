@@ -1,4 +1,4 @@
-# Hey Gobi — native build.
+# The Structure — native build.
 # Fetches llama.cpp v1.1.0 (ggml-org) and builds the `llama` library plus our
 # small JNI bridge (llama_jni.cpp) into libheygobi.so.
 # The llama.cpp C API used here was verified against include/llama.h at the

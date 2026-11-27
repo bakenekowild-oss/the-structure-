@@ -20,7 +20,7 @@ import androidx.compose.runtime.setValue
 import com.heygobi.app.HeyGobiApp
 
 /**
- * Hey Gobi home: three tabs — Chat (talk to the brain), Setup (one-time
+ * The Structure home: three tabs — Chat (talk to the brain), Setup (one-time
  * first-run checklist), Settings (wake mode, voice lock, routines, history).
  */
 class MainActivity : ComponentActivity() {

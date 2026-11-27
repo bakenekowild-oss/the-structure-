@@ -48,12 +48,15 @@ class LlamaBridge(private val context: Context) {
      * Loads the GGUF model at [path]. Runs on a background thread; progress
      * (0.0-1.0) is reported through [loadProgress].
      * Returns false if the file cannot be loaded.
+     * Loading twice is a no-op that returns true: a second native load of
+     * the same 2.8 GB model would double the RAM use and can kill the app.
      */
     suspend fun loadModel(
         path: String,
         ctxSize: Int = SystemPrompt.CONTEXT_SIZE,
         threads: Int = SystemPrompt.THREADS
     ): Boolean = withContext(Dispatchers.Default) {
+        if (isLoaded()) return@withContext true
         _loadProgress.value = 0f
         val ok = nativeLoadModel(path, ctxSize, threads)
         if (ok) _loadProgress.value = 1f

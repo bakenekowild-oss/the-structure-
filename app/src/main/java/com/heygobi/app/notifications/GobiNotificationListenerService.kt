@@ -11,7 +11,7 @@ import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationManagerCompat
 
 /**
- * Reads other apps' notifications (WhatsApp, SMS apps, ...) so Hey Gobi
+ * Reads other apps' notifications (WhatsApp, SMS apps, ...) so The Structure
  * can read them aloud and reply by voice.
  *
  * Everything stays on the phone: notifications are kept only in memory

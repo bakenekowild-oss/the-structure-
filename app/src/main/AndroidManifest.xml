@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Hey Gobi — personal voice assistant.
+  The Structure — personal voice assistant.
   Every permission here is used by a feature the user asked for:
   - RECORD_AUDIO: wake-word listening + voice commands + voice typing.
-  - FOREGROUND_SERVICE + FOREGROUND_SERVICE_MICROPHONE: always-on "Hey Gobi"
+  - FOREGROUND_SERVICE + FOREGROUND_SERVICE_MICROPHONE: always-on "The Structure"
     listening from anywhere, including lock screen and screen off.
   - CALL_PHONE / SEND_SMS / READ_CONTACTS: hands-free calls and messages.
   - ACCESS_FINE_LOCATION: emergency "Help" message with location.
@@ -82,7 +82,7 @@
         </activity>
 
         <!--
-          Passcode gate: shown over the lock screen after "Hey Gobi" wakes
+          Passcode gate: shown over the lock screen after "The Structure" wakes
           the phone and the voice is verified. showWhenLocked + turnScreenOn
           let it appear above the keyguard. It is NOT exported: only the
           WakeWordService starts it.
@@ -104,7 +104,7 @@
 
         <!--
           Full voice control of the screen. The user enables this once in
-          Settings → Accessibility → Hey Gobi. The service never reads the
+          Settings → Accessibility → The Structure. The service never reads the
           screen for any other purpose and never uploads anything.
         -->
         <service
@@ -121,7 +121,7 @@
         </service>
 
         <!--
-          Reads other apps' notifications (WhatsApp etc.) so Hey Gobi can
+          Reads other apps' notifications (WhatsApp etc.) so The Structure can
           read them aloud and reply by voice. Enabled by the user in Setup
           or Settings. Notifications stay in memory only — never saved,
           never uploaded.

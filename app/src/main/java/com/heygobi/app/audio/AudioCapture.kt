@@ -13,7 +13,7 @@ import androidx.core.content.ContextCompat
  * listener in the app: the Vosk recognizer and the speaker verifier both
  * read from this one stream, so the mic is never opened twice.
  *
- * A ring buffer keeps the last [RING_SECONDS] of audio, so when "Hey Gobi"
+ * A ring buffer keeps the last [RING_SECONDS] of audio, so when "The Structure"
  * is detected the exact utterance that woke the phone is available for
  * speaker verification — no re-recording is needed.
  */

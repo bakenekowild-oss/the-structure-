@@ -22,6 +22,7 @@ import com.heygobi.app.data.CommandLogEntity
 import com.heygobi.app.security.SecureStore
 import com.heygobi.app.ui.MainActivity
 import com.heygobi.app.ui.PasscodeActivity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,10 +37,17 @@ import org.vosk.Model
 import org.vosk.Recognizer
 
 /**
- * Always-on "Hey Gobi" listening.
+ * Always-on "The Structure" listening.
  *
  * Flow (all on-device, all offline):
- *   1. Vosk listens in grammar mode for "Hey Gobi" (tiny model, low CPU).
+ *   1. Vosk listens in grammar mode for "The Structure" (tiny model, low CPU).
+ *      "the" is a weak word that Vosk often drops or reduces to "da"/"de",
+ *      so the grammar also accepts "da structure" and the bare word
+ *      "structure". Full listening is the recommended mode for the same
+ *      reason: the recognizer then hears everything and the app looks for
+ *      the phrase in the partial results. "structure" is a common word,
+ *      so false wakes are more likely than with a made-up word — the
+ *      voiceprint and passcode gates still protect the phone.
  *   2. On wake: the exact wake utterance is taken from the audio ring
  *      buffer and checked against the enrolled voiceprint (ECAPA-TDNN).
  *      A stranger saying the same words is silently ignored — nothing is
@@ -186,11 +194,12 @@ class WakeWordService : Service(), VoiceIO {
     /**
      * Grammar for wake listening. Null means the full language model
      * (full-listening mode): the recognizer hears everything and the app
-     * looks for the phrase in the results. Used when "gobi" is not in the
-     * small model's lexicon.
+     * looks for the phrase in the results. Full listening is the default
+     * since v1.3: "the" is a weak word that Vosk often drops or mumbles,
+     * so it is the reliable mode for "The Structure".
      */
     private fun wakeGrammar(): String? {
-        val mode = app.secureStore.getString(SecureStore.KEY_WAKE_MODE, "grammar")
+        val mode = app.secureStore.getString(SecureStore.KEY_WAKE_MODE, "full")
         return if (mode == "full") null else com.heygobi.app.audio.VoskManager.WAKE_GRAMMAR
     }
 
@@ -244,86 +253,127 @@ class WakeWordService : Service(), VoiceIO {
         }
     }
 
+    /**
+     * Wake -> verify -> passcode -> command. Nothing in here may crash
+     * the service: any unexpected failure is logged and the listener
+     * goes back to listening instead of killing the app. (v1.3: the app
+     * used to close itself on wake.)
+     */
     private suspend fun handleWake() {
-        val verifier = app.speakerVerifier
-        if (!verifier.isEnrolled()) {
-            speak("Voice enrolment cheyyaledhu. App lo setup complete cheyyandi.")
-            backToListening()
-            return
-        }
-        // The wake utterance itself is the verification sample.
-        val pcm = withContext(Dispatchers.Default) { capture.recentAudio(SpeakerVerifier.VERIFY_SECONDS) }
-        val score = withContext(Dispatchers.Default) { verifier.verify(pcm) }
-        if (score < 0) {
-            Log.w(TAG, "Voice verification unavailable (score=$score)")
-            backToListening()
-            return
-        }
-        if (!verifier.isMatch(score)) {
-            // Stranger: say nothing, open nothing. Log locally only.
-            Log.w(TAG, "Voice rejected (score=$score)")
-            app.database.commandLogDao().insert(
-                CommandLogEntity(
-                    command = "wake",
-                    action = "voice_rejected",
-                    timestamp = System.currentTimeMillis(),
-                    success = false
-                )
-            )
-            backToListening()
-            return
-        }
-        Log.i(TAG, "Voice verified (score=$score)")
-        state = State.WAITING_PASSCODE
-        SessionState.resetPasscodeResult()
-        speak("Passcode cheppandi")
-        val passIntent = Intent(this, PasscodeActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        startActivity(passIntent)
-        val result = withTimeoutOrNull(PASSCODE_TIMEOUT_MS) {
-            SessionState.passcodeResult.first { it != null }
-        }
-        when (result) {
-            SessionState.PasscodeResult.OK -> onPasscodeOk()
-            SessionState.PasscodeResult.FAILED -> {
-                speak("Passcode thappu")
+        try {
+            val verifier = app.speakerVerifier
+            if (!verifier.isEnrolled()) {
+                speak("Voice enrolment cheyyaledhu. App lo setup complete cheyyandi.")
                 backToListening()
+                return
             }
-            else -> backToListening() // timeout or null
+            // The wake utterance itself is the verification sample.
+            val pcm = withContext(Dispatchers.Default) { capture.recentAudio(SpeakerVerifier.VERIFY_SECONDS) }
+            val score = withContext(Dispatchers.Default) { verifier.verify(pcm) }
+            if (score < 0) {
+                Log.w(TAG, "Voice verification unavailable (score=$score)")
+                backToListening()
+                return
+            }
+            if (!verifier.isMatch(score)) {
+                // Stranger: say nothing, open nothing. Log locally only.
+                Log.w(TAG, "Voice rejected (score=$score)")
+                app.database.commandLogDao().insert(
+                    CommandLogEntity(
+                        command = "wake",
+                        action = "voice_rejected",
+                        timestamp = System.currentTimeMillis(),
+                        success = false
+                    )
+                )
+                backToListening()
+                return
+            }
+            Log.i(TAG, "Voice verified (score=$score)")
+            // No passcode set: the gate can neither pass nor fail, so
+            // skip it cleanly instead of showing a gate that can never
+            // open. (v1.3 wake-crash guard.)
+            if (!app.passcodeManager.hasPasscode()) {
+                Log.i(TAG, "No passcode set — skipping passcode gate")
+                onPasscodeOk()
+                return
+            }
+            state = State.WAITING_PASSCODE
+            SessionState.resetPasscodeResult()
+            speak("Passcode cheppandi")
+            val passIntent = Intent(this, PasscodeActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            try {
+                startActivity(passIntent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not open passcode screen", e)
+                backToListening()
+                return
+            }
+            val result = withTimeoutOrNull(PASSCODE_TIMEOUT_MS) {
+                SessionState.passcodeResult.first { it != null }
+            }
+            when (result) {
+                SessionState.PasscodeResult.OK -> onPasscodeOk()
+                SessionState.PasscodeResult.FAILED -> {
+                    speak("Passcode thappu")
+                    backToListening()
+                }
+                else -> backToListening() // timeout or null
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Nothing in activation may kill the app: log and listen again.
+            Log.e(TAG, "Wake handling failed", e)
+            backToListening()
         }
     }
 
     private suspend fun onPasscodeOk() {
-        // Open the screen lock with the stored credential, if locked.
-        val keyguard = getSystemService(KEYGUARD_SERVICE) as android.app.KeyguardManager
-        if (keyguard.isKeyguardLocked) {
-            val acc = GobiAccessibilityService.instance
-            if (acc == null) {
-                speak("Accessibility service off ga undhi. Settings lo Hey Gobi on cheyyandi.")
+        try {
+            // Open the screen lock with the stored credential, if locked.
+            val keyguard = getSystemService(KEYGUARD_SERVICE) as android.app.KeyguardManager
+            if (keyguard.isKeyguardLocked) {
+                val acc = GobiAccessibilityService.instance
+                if (acc == null) {
+                    speak("Accessibility service off ga undhi. Settings lo The Structure on cheyyandi.")
+                    backToListening()
+                    return
+                }
+                // A missing credential is a clean false, never a crash:
+                // the unlocker returns false and the user unlocks by hand.
+                val unlocked = withContext(Dispatchers.Default) {
+                    try {
+                        ScreenLockUnlocker.unlock(acc, app.secureStore)
+                    } catch (_: Exception) {
+                        false
+                    }
+                }
+                if (!unlocked) {
+                    speak("Screen lock open avvaledhu. Meere unlock cheyyandi.")
+                    backToListening()
+                    return
+                }
+            }
+            state = State.COMMAND
+            speak("Cheppandi")
+            val text = listen(COMMAND_TIMEOUT_MS)
+            if (text.isNullOrBlank()) {
                 backToListening()
                 return
             }
-            val unlocked = withContext(Dispatchers.Default) {
-                ScreenLockUnlocker.unlock(acc, app.secureStore)
+            withContext(Dispatchers.Default) {
+                commandEngine.handle(text)
             }
-            if (!unlocked) {
-                speak("Screen lock open avvaledhu. Meere unlock cheyyandi.")
-                backToListening()
-                return
-            }
-        }
-        state = State.COMMAND
-        speak("Cheppandi")
-        val text = listen(COMMAND_TIMEOUT_MS)
-        if (text.isNullOrBlank()) {
             backToListening()
-            return
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Command after passcode failed", e)
+            backToListening()
         }
-        withContext(Dispatchers.Default) {
-            commandEngine.handle(text)
-        }
-        backToListening()
     }
 
     private fun backToListening() {
@@ -373,10 +423,10 @@ class WakeWordService : Service(), VoiceIO {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Hey Gobi listening",
+                "The Structure listening",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Shows while Hey Gobi listens for the wake word"
+                description = "Shows while The Structure listens for the wake word"
                 setShowBadge(false)
             }
             val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -397,8 +447,8 @@ class WakeWordService : Service(), VoiceIO {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_mic)
-            .setContentTitle("Hey Gobi is listening")
-            .setContentText("Say \"Hey Gobi\" from anywhere — even the lock screen")
+            .setContentTitle("The Structure is listening")
+            .setContentText("Say \"The Structure\" from anywhere — even the lock screen")
             .setContentIntent(openIntent)
             .addAction(R.drawable.ic_mic, "Open", openIntent)
             .addAction(R.drawable.ic_mic, "Stop listening", stopIntent)

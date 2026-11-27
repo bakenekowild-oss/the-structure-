@@ -12,13 +12,15 @@ import com.heygobi.app.security.SecureStore
 import com.heygobi.app.voice.SpeakerVerifier
 
 /**
- * Hey Gobi — application entry point.
+ * The Structure — application entry point.
  *
  * Singletons are created here once and shared by the UI, the wake-word
  * service and the accessibility service. The Groq client is created here
  * too; it only touches the network when the user chats with a key saved.
- * The brain (llama.cpp) is loaded lazily on first chat, never at startup,
- * so the app opens fast and the big model only uses RAM while it is needed.
+ * The brain (llama.cpp) is loaded lazily: with a Groq key saved it is not
+ * loaded at all until a Groq request fails; without a key it loads on
+ * first chat. It is never loaded at startup, so the app opens fast and
+ * the big model only uses RAM while it is needed.
  */
 class HeyGobiApp : Application() {
 
@@ -48,7 +50,7 @@ class HeyGobiApp : Application() {
         database = AppDatabase.get(this)
         llamaBridge = LlamaBridge(this)
         groqClient = GroqClient(this, secureStore)
-        chatRepository = ChatRepository(database.chatDao(), llamaBridge, groqClient)
+        chatRepository = ChatRepository(database.chatDao(), llamaBridge, groqClient, secureStore)
         voskManager = VoskManager(this)
         speakerVerifier = SpeakerVerifier(this, secureStore)
         ttsEngine = TtsEngine(this)

@@ -9,9 +9,9 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * Hey Gobi's hands on the screen.
+ * The Structure's hands on the screen.
  *
- * The user enables this once in Settings → Accessibility → Hey Gobi.
+ * The user enables this once in Settings → Accessibility → The Structure.
  * Through it the app can tap, scroll, type into fields, press back/home,
  * and enter the screen-lock PIN/password/pattern — all driven by his voice
  * only, after the voice lock and the passcode gate.

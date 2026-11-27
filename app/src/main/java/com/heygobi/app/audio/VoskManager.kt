@@ -21,11 +21,22 @@ import java.util.zip.ZipInputStream
  * recognition never touch the network.
  *
  * Wake-word detection runs in grammar mode: the recognizer only listens
- * for "hey gobi" (plus [unk] for everything else). That is the fast,
- * low-false-alarm path. If "gobi" turns out not to be in the small model's
- * lexicon, the settings screen offers full-listening mode instead — the
- * recognizer then hears everything and the app looks for the phrase in the
- * partial results. Both modes are real Vosk recognition; neither is faked.
+ * for the wake phrase (plus [unk] for everything else). That is the fast,
+ * low-false-alarm path. The wake phrase is "The Structure", but "the" is
+ * a weak, often mumbled word — Vosk frequently drops it or hears it as
+ * "da" / "de" — so the grammar includes "da structure" and the bare word
+ * "structure" as well, and the matcher below accepts the common
+ * recognition variants ("de structure", "a structure", "the structer",
+ * "the structures"). Full listening is the recommended mode for the same
+ * reason: the recognizer then hears everything and the app looks for the
+ * phrase in the partial results. Both modes are real Vosk recognition;
+ * neither is faked.
+ *
+ * Trade-off, stated plainly: "structure" is a common English word, so
+ * the phone may wake on other speech too (TV, someone talking about a
+ * structure). The voiceprint check and the passcode gate still protect
+ * the phone — a false wake alone does nothing — but expect more false
+ * wakes than with a made-up word.
  *
  * NOTE on Telugu: a small Telugu Vosk model exists, but its published word
  * error rate is ~88% — effectively unusable. So speech input is English /
@@ -39,12 +50,35 @@ class VoskManager(private val context: Context) {
         const val MODEL_DIR_NAME = "vosk-model-small-en-us-0.15"
         const val MIN_MODEL_BYTES = 30_000_000L // the zip is ~40 MB; anything far smaller is a broken download
 
-        /** Grammar-mode wake phrase. [unk] is required or the search stalls. */
-        const val WAKE_GRAMMAR = "[\"hey gobi\", \"[unk]\"]"
-        const val WAKE_PHRASE = "hey gobi"
+        /**
+         * Grammar-mode wake phrases. [unk] is required or the search stalls.
+         * "the structure" is the phrase as spoken; "da structure" covers
+         * the common reduction of "the" to "da"; "structure" covers Vosk
+         * dropping the weak word "the" entirely. All three are ordinary
+         * dictionary words, so the grammar stays valid.
+         */
+        const val WAKE_GRAMMAR = "[\"the structure\", \"da structure\", \"structure\", \"[unk]\"]"
 
-        /** Common mis-hearings of the wake phrase that are accepted as well. */
-        val WAKE_ALIASES = listOf("hey goby", "hey go be", "hey gobi ")
+        /** The wake phrase as the user says it. */
+        const val WAKE_PHRASE = "the structure"
+
+        /**
+         * Other ways Vosk commonly hears the wake phrase. "the" is weak
+         * and often reduced ("da", "de", "a") or dropped; "structure" is
+         * sometimes heard as "structer" or pluralised. The bare word
+         * "structure" is included on purpose — Vosk drops "the" often —
+         * which is also why false wakes are more likely than with a
+         * made-up word (see the class note above).
+         */
+        val WAKE_ALIASES = listOf(
+            "da structure",
+            "de structure",
+            "a structure",
+            "the structer",
+            "da structer",
+            "the structures",
+            "structure"
+        )
     }
 
     val modelDir: File get() = File(context.filesDir, MODEL_DIR_NAME)

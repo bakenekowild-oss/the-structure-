@@ -1,14 +1,18 @@
 package com.heygobi.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
@@ -16,11 +20,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,8 +38,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.heygobi.app.HeyGobiApp
+import com.heygobi.app.R
 import com.heygobi.app.brain.ChatRepository
 import com.heygobi.app.security.SecureStore
 import kotlinx.coroutines.launch
@@ -41,11 +51,14 @@ import java.io.File
 
 /**
  * Chat with the brain (v1: button-tap + mic chat).
- * The brain loads automatically when the model has been imported.
  * Since v1.2, a saved Groq key ("Jarvis mode") answers first — in seconds —
  * and the on-device brain is the fallback; without a key the local brain
  * answers alone. Local replies stream in token by token; the local brain
  * is slow on this phone (a few seconds per reply).
+ * Since v1.3, with a Groq key saved the local model is NOT loaded when
+ * chat opens: loading the 2.8 GB model on every open ran the phone out of
+ * memory and killed the app. It loads lazily only if a Groq request fails
+ * (see ChatRepository).
  */
 @Composable
 fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
@@ -58,11 +71,24 @@ fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
+    // The Groq key is read live on every composition, so the header always
+    // shows which brain is actually answering: Jarvis mode when a key is
+    // saved, the on-device Gemma line only when the local brain is the
+    // active brain (no key saved).
+    val hasGroqKey = app.chatRepository.hasGroqKey()
+
     // Chat is allowed when the local brain is ready, or when a Groq key is
     // saved (Jarvis mode) — Groq answers without the local model loaded.
-    val canChat = brainState == BrainState.READY || app.chatRepository.hasGroqKey()
+    val canChat = brainState == BrainState.READY || brainState == BrainState.JARVIS || hasGroqKey
 
     LaunchedEffect(Unit) {
+        // Jarvis mode (v1.3): Groq answers chat, so the 2.8 GB local model
+        // is NOT loaded here at all. It loads lazily only if a Groq
+        // request fails (see ChatRepository.ensureLocalLoaded).
+        if (app.chatRepository.hasGroqKey()) {
+            brainState = BrainState.JARVIS
+            return@LaunchedEffect
+        }
         val path = app.secureStore.getString(SecureStore.KEY_BRAIN_MODEL_PATH)
         if (path.isNullOrBlank() || !File(path).exists()) {
             brainState = BrainState.NOT_LOADED
@@ -88,74 +114,108 @@ fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         scope.launch { app.chatRepository.send(clean) }
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(12.dp)) {
-        when (brainState) {
-            BrainState.CHECKING, BrainState.LOADING -> {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
-                    Text("Brain loading… ${(loadProgress * 100).toInt()}%")
-                }
-                LinearProgressIndicator(
-                    progress = { loadProgress },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+    // One status line for the header, derived from the same state as before.
+    val statusText = when (brainState) {
+        BrainState.CHECKING, BrainState.LOADING ->
+            "Brain loading… ${(loadProgress * 100).toInt()}%"
+        BrainState.NOT_LOADED, BrainState.FAILED ->
+            if (canChat) "Brain ready — Jarvis mode"
+            else if (brainState == BrainState.NOT_LOADED) "Brain is not loaded"
+            else "Brain failed to load"
+        BrainState.READY ->
+            if (hasGroqKey) "Brain ready — Jarvis mode"
+            else "Brain ready — Gemma 3 4B (on-device)"
+        BrainState.JARVIS ->
+            if (hasGroqKey) "Brain ready — Jarvis mode"
+            else "Brain is not loaded"
+    }
+
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        // Brand header: the Structure mark + name + live brain status.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_launcher_foreground),
+                    contentDescription = "The Structure",
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(30.dp)
                 )
             }
-            BrainState.NOT_LOADED, BrainState.FAILED -> {
-                if (canChat) {
-                    Text(
-                        "Brain ready — Jarvis mode",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                } else if (brainState == BrainState.NOT_LOADED) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            "Brain is not loaded. Import the model in the Setup tab first " +
-                            "(copy it from Termux to Downloads, then import it here).",
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                } else {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            "Brain failed to load. Check the model file in Setup and try again.",
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                }
-            }
-            BrainState.READY -> {
+            Column(Modifier.padding(start = 12.dp)) {
+                Text("The Structure", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    "Brain ready — Gemma 3 4B (on-device)",
+                    statusText,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
         }
 
+        if (brainState == BrainState.CHECKING || brainState == BrainState.LOADING) {
+            LinearProgressIndicator(
+                progress = { loadProgress },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            )
+        }
+        if ((brainState == BrainState.NOT_LOADED || brainState == BrainState.FAILED) && !canChat) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ),
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            ) {
+                Text(
+                    if (brainState == BrainState.NOT_LOADED) {
+                        "Brain is not loaded. Import the model in the Setup tab first " +
+                        "(copy it from Termux to Downloads, then import it here)."
+                    } else {
+                        "Brain failed to load. Check the model file in Setup and try again."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+        }
+
         LazyColumn(
             state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(messages) { msg ->
                 MessageBubble(msg)
             }
             if (isReplying) {
                 item {
-                    Text("Gobi is typing…", style = MaterialTheme.typography.labelMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            "The Structure is typing…",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
                 }
             }
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
@@ -165,7 +225,14 @@ fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                 placeholder = { Text("Type a message…") },
                 enabled = canChat && !isReplying,
                 singleLine = false,
-                maxLines = 4
+                maxLines = 4,
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                )
             )
             IconButton(
                 onClick = {
@@ -181,20 +248,26 @@ fun ChatScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
             ) {
                 Icon(Icons.Filled.Mic, contentDescription = "Speak")
             }
-            IconButton(
+            FilledIconButton(
                 onClick = { send(input) },
-                enabled = canChat && !isReplying && input.isNotBlank()
+                enabled = canChat && !isReplying && input.isNotBlank(),
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(Icons.Filled.Send, contentDescription = "Send")
             }
         }
         if (listening) {
-            Text("Listening… speak now", style = MaterialTheme.typography.labelMedium)
+            Text(
+                "Listening… speak now",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 6.dp)
+            )
         }
     }
 }
 
-private enum class BrainState { CHECKING, LOADING, READY, NOT_LOADED, FAILED }
+private enum class BrainState { CHECKING, LOADING, READY, NOT_LOADED, FAILED, JARVIS }
 
 @Composable
 private fun MessageBubble(msg: ChatRepository.Message) {
@@ -206,13 +279,20 @@ private fun MessageBubble(msg: ChatRepository.Message) {
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = if (isUser) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant
+                else MaterialTheme.colorScheme.surfaceContainerHigh
+            ),
+            shape = RoundedCornerShape(
+                topStart = if (isUser) 18.dp else 6.dp,
+                topEnd = if (isUser) 6.dp else 18.dp,
+                bottomStart = 18.dp,
+                bottomEnd = 18.dp
             ),
             modifier = Modifier.fillMaxWidth(0.85f)
         ) {
             Text(
                 text = msg.content,
-                modifier = Modifier.padding(10.dp),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 color = if (isUser) MaterialTheme.colorScheme.onPrimary
                 else MaterialTheme.colorScheme.onSurface
             )

@@ -25,12 +25,16 @@ import java.security.MessageDigest
  * its SHA-256 is verified before use; a bad file is deleted, never used.
  *
  * How it works:
- * - Enrolment: the user says "Hey Gobi" 3 times. Each recording becomes a
+ * - Enrolment: the user says "The Structure" 3 times. Each recording becomes a
  *   192-dim embedding (80-dim log-mel -> ECAPA-TDNN). The embeddings are
  *   averaged and L2-normalised into one centroid, stored encrypted.
- * - Verification: the wake utterance itself ("Hey Gobi") is embedded and
+ * - Verification: the wake utterance itself ("The Structure") is embedded and
  *   compared with the centroid by cosine similarity. A score at or above
  *   the threshold (default 0.65) means "this is him".
+ *
+ * The embedding is text-independent: it captures the voice, not the
+ * words. Changing the wake phrase does not need re-enrollment — the
+ * stored centroid still matches the same voice saying the new phrase.
  *
  * This is a similarity check, not secure authentication: it makes it very
  * hard for another voice to pass, but no voice system is perfect. That is
@@ -187,7 +191,7 @@ class SpeakerVerifier(
     }
 
     /**
-     * Enrols the voice from [samples] (usually 3 recordings of "Hey Gobi").
+     * Enrols the voice from [samples] (usually 3 recordings of "The Structure").
      * Returns the mean intra-sample cosine similarity (enrolment quality,
      * 0.0-1.0), or a negative value on failure. The centroid is stored
      * encrypted; the raw recordings are never stored.

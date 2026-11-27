@@ -1,4 +1,4 @@
-# Hey Gobi — never commit local machine paths, secrets or build output.
+# The Structure — never commit local machine paths, secrets or build output.
 local.properties
 *.jks
 *.keystore

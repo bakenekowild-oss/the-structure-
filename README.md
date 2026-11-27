@@ -1,10 +1,28 @@
-# Hey Gobi — Personal Voice Assistant (Android)
+# The Structure — Personal Voice Assistant (Android)
 
-Your own voice assistant, on your phone, fully offline. Say **"Hey Gobi"**
+Your own voice assistant, on your phone, fully offline. Say **"The Structure"**
 anywhere — lock screen, home screen, inside any app, screen off — and it
 wakes, checks it is really your voice, asks for your passcode, then does
 what you say. The brain is Gemma 3 4B Abliterated v2 running on the phone
-itself. No accounts, no API keys, no subscription, no expiry.
+itself. No accounts, no subscription, no expiry. An optional free Groq key
+("Jarvis mode", Settings) makes chat answer in seconds; without it the
+on-device brain answers.
+
+**v1.3 — what changed:** the app is now **The Structure** and the wake word
+is **"The Structure"** too. "The" is a weak word that speech recognition
+often mumbles or drops, so the app also answers to **"da structure"** and
+the bare word **"structure"**; **Full listening** is now the default wake
+mode (recommended). "Structure" is a common word, so the phone may wake on
+other speech too — the voice check and passcode still protect it. Your
+voiceprint does **not** need re-enrollment — it checks your voice, not the
+words. With a Groq key saved, the 2.8 GB local model is no longer loaded
+when chat opens (it used to run the phone out of memory and close the app);
+it loads lazily only if Groq fails. The interface got a polish too: a
+darker, layered theme with the gold accent, rounded cards, a new
+Structure-mark app icon, and the app mark in the Chat/Setup/Settings
+headers. The repo was renamed to **the-structure-** on GitHub; the package
+name (`com.heygobi.app`) and signing key are unchanged, so v1.3 installs
+as an update — no uninstall, no setup redo.
 
 **Phone:** Realme Narzo 80 Pro, 8 GB RAM, Android 16
 **Package:** `com.heygobi.app`
@@ -15,7 +33,7 @@ itself. No accounts, no API keys, no subscription, no expiry.
 
 | Piece | What it does |
 |---|---|
-| Wake word | Vosk (small English model, ~40 MB) listens for "Hey Gobi" |
+| Wake word | Vosk (small English model, ~40 MB) listens for "The Structure" (also "da structure" and the bare word "structure" — "the" is often mumbled or dropped) |
 | Voice lock | WeSpeaker ECAPA-TDNN voiceprint — only YOUR voice wakes it |
 | Passcode gate | 4–8 digit passcode after waking, before any phone access |
 | Brain | llama.cpp + Gemma 3 4B Abliterated v2 Q5_K_M (2.8 GB, on-device) |
@@ -27,7 +45,8 @@ itself. No accounts, no API keys, no subscription, no expiry.
 | Voice | System TTS (Telugu preferred) — fast commands never wait on the brain |
 
 **Two speeds:** simple commands (open app, call, type, scroll, routines)
-run on a fast local path and answer instantly. Chat answers go to the
+run on a fast local path and answer instantly. Chat answers go to Groq
+first when a key is saved (Jarvis mode, seconds); otherwise to the
 Gemma brain, which is slow on this phone (a few seconds per reply) —
 that is an honest limit of a 4 GB model on a phone CPU.
 
@@ -36,7 +55,8 @@ that is an honest limit of a 4 GB model on a phone CPU.
 ## Push to GitHub (Termux, like the Altius flow)
 
 Do these in Termux, one command at a time. The zip below contains the
-whole project. Replace `YOUR-REPO` with your repo name.
+whole project. The repo is `bakenekowild-oss/the-structure-` on GitHub
+(renamed from hey-gobi-app).
 
 ```bash
 cd ~
@@ -47,7 +67,7 @@ If you already have a repo for this app, clone it first instead and copy
 the files in:
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/YOUR-REPO.git hey-gobi-app
+git clone https://github.com/bakenekowild-oss/the-structure-.git hey-gobi-app
 ```
 
 Then, inside the project folder:
@@ -55,7 +75,7 @@ Then, inside the project folder:
 ```bash
 cd ~/hey-gobi-app
 git add .
-git commit -m "Hey Gobi v1 - full app"
+git commit -m "The Structure v1 - full app"
 git push origin main
 ```
 
@@ -66,9 +86,9 @@ empty, no README):
 cd ~/hey-gobi-app
 git init
 git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPO.git
+git remote add origin https://github.com/bakenekowild-oss/the-structure-.git
 git add .
-git commit -m "Hey Gobi v1 - full app"
+git commit -m "The Structure v1 - full app"
 git push -u origin main
 ```
 
@@ -89,24 +109,24 @@ either), `local.properties`, keystores, build output. See `.gitignore`.
    ```bash
    cp ~/ai/models/gemma-3-4b-it-abliterated-v2.q5_k_m.gguf ~/storage/downloads/
    ```
-3. Open **Hey Gobi → Setup tab** and work down the list:
+3. Open **The Structure → Setup tab** and work down the list:
    1. **Permissions** — microphone, notifications, contacts, calls, SMS, location.
    2. **Battery — Unrestricted.** This is the step that matters most:
       without it Android kills the listener, exactly like the Termux
       server kept dying.
-   3. **Accessibility service** — Settings → Accessibility → Hey Gobi control → On.
+   3. **Accessibility service** — Settings → Accessibility → The Structure control → On.
    4. **Brain model** — tap "Import model", pick the .gguf from Downloads,
       then "Load brain (test it)". Takes a minute; the file is 2.8 GB.
    5. **Voice spotter model** — downloads Vosk (~40 MB, internet once).
    6. **Voiceprint model** — downloads WeSpeaker (~25 MB, internet once,
       SHA-256 verified).
-   7. **Voice enrollment** — say "Hey Gobi" 3 times, clearly, in a quiet room.
+   7. **Voice enrollment** — say "The Structure" 3 times, clearly, in a quiet room.
    8. **App passcode** — 4–8 digits.
    9. **Screen-lock credential** (recommended) — your phone's own PIN /
       password / pattern. Stored encrypted on-device only, never sent
       anywhere. Without it, unlock the phone by hand when it wakes.
    10. **Emergency contact** (optional) — saying "Help" calls this person at once.
-   11. **Notification access** (optional, recommended) — lets Hey Gobi
+   11. **Notification access** (optional, recommended) — lets The Structure
        read your notifications aloud and reply in WhatsApp etc. by voice.
        Android shows a warning when enabling it; that is normal.
    12. **Display over other apps** (optional) — suggestion bar over any
@@ -123,12 +143,12 @@ two small model downloads, and for weather/NJK status in routines.
 
 1. **Chat works** — Chat tab, type a message. The brain replies in
    Tanglish. If it fails, re-check step 4 above (model import).
-2. **"Hey Gobi" wakes it** — lock the phone, say "Hey Gobi". The passcode
+2. **"The Structure" wakes it** — lock the phone, say "The Structure". The passcode
    screen should appear. If it never wakes, go to Settings → wake mode →
-   **Full listening** and try again (the word "gobi" may be missing from
-   the small speech model's dictionary — the grammar mode then cannot
-   hear it, and full listening is the fallback).
-3. **Voice lock blocks strangers** — have someone else say "Hey Gobi".
+   **Full listening** and try again (the word "the" is often mumbled or
+   dropped in speech — the app also answers to "da structure" and the
+   bare word "structure" — and full listening is the recommended mode).
+3. **Voice lock blocks strangers** — have someone else say "The Structure".
    Nothing should happen: no passcode screen, no sound. If it wakes for
    them, raise the voice threshold in Settings (0.65 → 0.75).
 4. **Passcode gate** — enter the right passcode: the phone unlocks (if
@@ -139,13 +159,13 @@ two small model downloads, and for weather/NJK status in routines.
 7. **"Help"** — calls your emergency contact at once (warn them first).
 8. **"Good morning"** — reads the routine (weather needs internet).
 9. **"Idi enti?"** — with any app open, it reads the screen back.
-10. **Screen off** — turn the screen off, wait a minute, say "Hey Gobi".
+10. **Screen off** — turn the screen off, wait a minute, say "The Structure".
     It should still wake. If it stops waking after a while, re-check
     battery Unrestricted (step 2 above).
 11. **Reboot** — after a restart, the listener should come back on its own
     (only if you tapped "Mark setup done").
 12. **Notifications** — send yourself a WhatsApp message from another
-    phone, then say "Hey Gobi" → "Notifications chaduvu". It should read
+    phone, then say "The Structure" → "Notifications chaduvu". It should read
     it aloud. Then "WhatsApp lo reply hello" — the reply should arrive.
 
 ---
@@ -154,7 +174,7 @@ two small model downloads, and for weather/NJK status in routines.
 
 | Say | What happens |
 |---|---|
-| "Hey Gobi" | Wake (then voice check, then passcode) |
+| "The Structure" | Wake (then voice check, then passcode) |
 | "WhatsApp open cheyyi" / "<app> open cheyyi" | Opens the app |
 | "Type cheyyi" | Types what you dictate, with suggestions |
 | "Call Raju" / "Message Raju ..." | Reads back, sends/calls after your "yes" |
@@ -190,9 +210,10 @@ Chat (in the app) goes to the brain for everything.
 - **Speech recognition is English (Tanglish).** A Telugu speech model
   exists (vosk-model-small-te-0.42) but its published word error rate
   is ~88% — effectively unusable — so the app listens in English and
-  you speak Tanglish. The word "gobi" may not be in the small model's
-  dictionary; if grammar wake-word mode never fires, switch to full
-  listening in Settings.
+  you speak Tanglish. The word "the" is often mumbled or dropped in
+  speech, so the app also answers to "da structure" and the bare word
+  "structure". Full listening is the recommended wake mode; grammar mode
+  listens for "the structure", "da structure" and "structure".
 - **Voice verification is similarity matching, not a security proof.**
   A very good recording of your voice could fool it. The passcode gate
   is the real lock — that is why both exist.

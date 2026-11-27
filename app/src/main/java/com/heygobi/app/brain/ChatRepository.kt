@@ -2,6 +2,7 @@ package com.heygobi.app.brain
 
 import com.heygobi.app.data.ChatDao
 import com.heygobi.app.data.ChatMessageEntity
+import com.heygobi.app.security.SecureStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * Chat with the brain.
@@ -21,11 +23,17 @@ import kotlinx.coroutines.launch
  * Gemma brain. The local brain is slow on this phone (a few seconds per
  * reply) — that is an honest limit, and it only affects chat answers:
  * voice commands never wait on the brain (see CommandEngine).
+ *
+ * Since v1.3 the local brain is loaded LAZILY: with a Groq key saved it
+ * is not loaded when chat opens — loading the 2.8 GB model on every open
+ * ran the phone out of memory and killed the app. It is loaded here, on
+ * demand, only when a Groq request fails (or no key is saved at all).
  */
 class ChatRepository(
     private val chatDao: ChatDao,
     private val bridge: LlamaBridge,
-    private val groqClient: GroqClient
+    private val groqClient: GroqClient,
+    private val secureStore: SecureStore
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
@@ -47,6 +55,24 @@ class ChatRepository(
 
     /** True when a Groq key is saved — chat can then run without the local brain loaded. */
     fun hasGroqKey(): Boolean = groqClient.hasKey()
+
+    /**
+     * Loads the local brain on demand (lazy). True when it is ready.
+     * Called only when Groq failed or no key is saved — the 2.8 GB model
+     * is never loaded eagerly, so opening chat cannot run the phone out
+     * of memory. A missing or deleted model file is a clean false, never
+     * a crash.
+     */
+    private suspend fun ensureLocalLoaded(): Boolean {
+        if (bridge.isLoaded()) return true
+        val path = secureStore.getString(SecureStore.KEY_BRAIN_MODEL_PATH)
+        if (path.isNullOrBlank() || !File(path).exists()) return false
+        return try {
+            bridge.loadModel(path)
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     /**
      * Sends a user message and gets the brain's reply. Returns false if no
@@ -92,9 +118,10 @@ class ChatRepository(
             // Groq answered blank: fall through to the local brain.
         }
 
-        if (!bridge.isLoaded()) {
-            // Groq failed (or answered blank) and the local brain is not
-            // loaded: say so plainly instead of leaving a blank bubble.
+        if (!ensureLocalLoaded()) {
+            // Groq failed (or answered blank) and the local brain could
+            // not be loaded either: say so plainly instead of leaving a
+            // blank bubble.
             val notice = "Network ledu, on-device brain kuda ready ga ledu — " +
                 "konchem aagi malli try cheyyandi, Guruvu garu."
             val current = _messages.value

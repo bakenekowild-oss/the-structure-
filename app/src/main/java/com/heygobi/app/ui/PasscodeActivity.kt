@@ -36,7 +36,7 @@ import com.heygobi.app.voice.SessionState
 import kotlinx.coroutines.launch
 
 /**
- * The passcode gate, shown over the lock screen after "Hey Gobi" wakes
+ * The passcode gate, shown over the lock screen after "The Structure" wakes
  * the phone and the voice lock passes.
  *
  * Enter the 4–8 digit passcode on the keypad, or say it aloud ("one two
@@ -83,7 +83,7 @@ class PasscodeActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text("Hey Gobi", style = MaterialTheme.typography.headlineMedium)
+                    Text("The Structure", style = MaterialTheme.typography.headlineMedium)
                     Text(
                         "Passcode cheppandi",
                         style = MaterialTheme.typography.titleMedium,

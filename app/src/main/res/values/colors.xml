@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="navy">#0B1220</color>
-    <color name="navy_surface">#16213A</color>
-    <color name="gold">#D9A821</color>
+    <!-- Deep near-black navy + bright gold, matching ui/Theme.kt. -->
+    <color name="navy">#0B0E14</color>
+    <color name="navy_surface">#131722</color>
+    <color name="gold">#FFC832</color>
     <color name="gold_dark">#B8860B</color>
-    <color name="ic_launcher_background">#0B1220</color>
+    <color name="ic_launcher_background">#0B0E14</color>
 </resources>

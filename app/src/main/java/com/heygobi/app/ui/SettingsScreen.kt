@@ -2,16 +2,23 @@ package com.heygobi.app.ui
 
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -30,13 +37,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.heygobi.app.HeyGobiApp
+import com.heygobi.app.R
 import com.heygobi.app.brain.GroqClient
 import com.heygobi.app.data.CommandLogEntity
 import com.heygobi.app.notifications.GobiNotificationListenerService
@@ -69,7 +80,10 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
     val unusedTick = tick
     val notificationOk = GobiNotificationListenerService.isEnabled(context)
     var wakeMode by remember {
-        mutableStateOf(app.secureStore.getString(SecureStore.KEY_WAKE_MODE) ?: "grammar")
+        // Default is Full listening (v1.3): "the" is a weak word that
+        // Vosk often drops or mumbles, so it is the reliable mode for
+        // "The Structure". Nothing stored yet means "full".
+        mutableStateOf(app.secureStore.getString(SecureStore.KEY_WAKE_MODE) ?: "full")
     }
     var threshold by remember { mutableStateOf(app.speakerVerifier.threshold()) }
     val routines by app.database.routineDao().getAll().collectAsState(initial = emptyList())
@@ -84,51 +98,85 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text("Settings", style = MaterialTheme.typography.headlineSmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_launcher_foreground),
+                        contentDescription = "The Structure",
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+                Text(
+                    "Settings",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(start = 12.dp)
+                )
+            }
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Wake-word mode", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Grammar mode listens only for \"Hey Gobi\" (fast, low battery). " +
-                        "Full listening hears everything and catches the wake word " +
-                        "even if \"gobi\" is missing from the speech model's dictionary. " +
-                        "Takes effect when the listener restarts.",
+                        "Full listening (recommended) hears everything and catches " +
+                        "\"The Structure\" reliably. Grammar mode listens only for " +
+                        "\"The Structure\" (fast, low battery) — but \"the\" is a weak " +
+                        "word: it is often mumbled or dropped in speech, so grammar " +
+                        "mode can miss the wake. Note: \"structure\" is a common word, " +
+                        "so the phone may wake on other speech too — the voice check " +
+                        "and passcode still protect it. Takes effect when the " +
+                        "listener restarts.",
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = wakeMode == "grammar",
-                            onClick = {
-                                wakeMode = "grammar"
-                                app.secureStore.putString(SecureStore.KEY_WAKE_MODE, "grammar")
-                            }
-                        )
-                        Text("Grammar (default)")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = wakeMode == "full",
-                            onClick = {
-                                wakeMode = "full"
-                                app.secureStore.putString(SecureStore.KEY_WAKE_MODE, "full")
-                            }
-                        )
-                        Text("Full listening")
-                    }
+                    WakeModeOption(
+                        label = "Grammar",
+                        description = "Listens only for “The Structure”. Fast, low " +
+                            "battery — but it can miss when “the” is mumbled or dropped.",
+                        selected = wakeMode == "grammar",
+                        onSelect = {
+                            wakeMode = "grammar"
+                            app.secureStore.putString(SecureStore.KEY_WAKE_MODE, "grammar")
+                        }
+                    )
+                    WakeModeOption(
+                        label = "Full listening (recommended)",
+                        description = "Hears everything and catches “The Structure” " +
+                            "reliably, including “da structure” and the bare word “structure”.",
+                        selected = wakeMode == "full",
+                        onSelect = {
+                            wakeMode = "full"
+                            app.secureStore.putString(SecureStore.KEY_WAKE_MODE, "full")
+                        }
+                    )
                 }
             }
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Jarvis mode (Groq API key)", style = MaterialTheme.typography.titleMedium)
                     Text(
                         "Free key from console.groq.com — stays on your phone, sent only to api.groq.com. " +
@@ -193,8 +241,13 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Voice-lock strictness", style = MaterialTheme.typography.titleMedium)
                     Text(
                         "How close a voice must match yours to wake the phone. " +
@@ -211,20 +264,25 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                         steps = 6
                     )
                     OutlinedButton(onClick = {
-                        app.ttsEngine.speak("Hey Gobi ready. Nenu vinipisthunnanu.")
+                        app.ttsEngine.speak("The Structure ready. Nenu vinipisthunnanu.")
                     }) { Text("Test voice") }
                 }
             }
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Notification access", style = MaterialTheme.typography.titleMedium)
                     Text(
                         if (notificationOk) {
                             val count = GobiNotificationListenerService.recentNotifications().size
-                            "On — Hey Gobi mee notifications chadivi, WhatsApp lanti " +
+                            "On — The Structure mee notifications chadivi, WhatsApp lanti " +
                             "apps lo reply ivvagalthundhi. Ippudu memory lo $count " +
                             "notifications unnayi."
                         } else {
@@ -243,8 +301,13 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Routines", style = MaterialTheme.typography.titleMedium)
                     if (routines.isEmpty()) {
                         Text("No routines yet. Say \"good morning\" to use the built-in one, " +
@@ -270,8 +333,13 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Recent voice commands", style = MaterialTheme.typography.titleMedium)
                     if (recent.isEmpty()) {
                         Text("Nothing yet — wake the phone and give a command.",
@@ -289,8 +357,13 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Chat history", style = MaterialTheme.typography.titleMedium)
                     Button(onClick = {
                         scope.launch {
@@ -304,13 +377,25 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("About & honest limits", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Hey Gobi v1.2 — on-device brain, with optional Groq cloud brain " +
+                        "The Structure v1.3 — on-device brain, with optional Groq cloud brain " +
                         "(Jarvis mode). No accounts, no subscriptions, never expires. " +
                         "Brain: Gemma 3 4B Abliterated v2 (Q5_K_M) on-device.\n\n" +
+                        "• Wake word is \"The Structure\" — say it anywhere to wake the " +
+                        "phone. Full listening is recommended: \"the\" is often mumbled " +
+                        "or dropped, so the app also answers to \"da structure\" and the " +
+                        "bare word \"structure\". \"Structure\" is a common word, so the " +
+                        "phone may wake on other speech too — the voice check and " +
+                        "passcode still protect it. Your voiceprint does not need " +
+                        "re-enrollment: it checks your voice, not the words.\n\n" +
                         "• With a Groq key saved, chat answers come from Groq in seconds; " +
                         "without a key, the on-device brain answers — it is slow on this " +
                         "phone, a few seconds per reply. Voice commands never wait on " +
@@ -329,6 +414,49 @@ fun SettingsScreen(app: HeyGobiApp, modifier: Modifier = Modifier) {
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * One wake-mode choice: a tappable card with a gold border and a gold
+ * tint when selected, plain outline when not. The whole card is the
+ * tap target, not just the radio button.
+ */
+@Composable
+private fun WakeModeOption(
+    label: String,
+    description: String,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    Card(
+        onClick = onSelect,
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(
+            if (selected) 1.5.dp else 1.dp,
+            if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(selected = selected, onClick = onSelect)
+            Column(Modifier.padding(start = 8.dp)) {
+                Text(label, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

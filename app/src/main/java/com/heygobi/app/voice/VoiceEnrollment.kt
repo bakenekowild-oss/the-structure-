@@ -4,7 +4,7 @@ import com.heygobi.app.audio.AudioCapture
 import kotlinx.coroutines.delay
 
 /**
- * Voiceprint enrolment flow: the user says "Hey Gobi" three times.
+ * Voiceprint enrolment flow: the user says "The Structure" three times.
  * Each sample is a 2.5 s capture from the mic. The recordings are used
  * only to build the embedding centroid and are never stored.
  */
@@ -15,7 +15,7 @@ class VoiceEnrollment(
     data class SampleProgress(val done: Int, val total: Int)
 
     /**
-     * Records one sample. The caller shows a prompt ("Say 'Hey Gobi' now")
+     * Records one sample. The caller shows a prompt ("Say 'The Structure' now")
      * before calling this. Captures [seconds] of audio after a short
      * lead-in so the whole phrase is caught.
      */

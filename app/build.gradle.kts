@@ -1,4 +1,4 @@
-// Hey Gobi — app module build.
+// The Structure — app module build.
 // Kotlin + Jetpack Compose, llama.cpp via NDK/JNI (arm64 only — the target
 // phone is a Realme Narzo 80 Pro, arm64-v8a), Vosk for offline speech,
 // ONNX Runtime for the speaker-verification embedding model.
@@ -17,8 +17,8 @@ android {
         applicationId = "com.heygobi.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.2.0"
+        versionCode = 3
+        versionName = "1.3.0"
 
         // arm64 only: the target phone is arm64-v8a, and llama.cpp is built
         // for that ABI only. This keeps the APK smaller and the CI build fast.
@@ -122,7 +122,8 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     // Vosk — fully offline speech recognition + grammar keyword spotting
-    // ("Hey Gobi"). Apache-2.0, no account, no key.
+    // ("The Structure"; "the" is often reduced to "da"/"de" or dropped,
+    // so the matcher accepts those variants too). Apache-2.0, no account, no key.
     implementation("com.alphacephei:vosk-android:0.3.75")
 
     // ONNX Runtime — runs the WeSpeaker ECAPA-TDNN speaker-embedding model

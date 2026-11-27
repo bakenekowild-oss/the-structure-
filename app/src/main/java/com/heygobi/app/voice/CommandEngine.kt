@@ -10,6 +10,7 @@ import android.telecom.TelecomManager
 import android.telephony.SmsManager
 import android.util.Log
 import com.heygobi.app.HeyGobiApp
+import com.heygobi.app.brain.ChatRepository
 import com.heygobi.app.brain.SystemPrompt
 import com.heygobi.app.control.AppLauncher
 import com.heygobi.app.control.GobiAccessibilityService
@@ -171,6 +172,24 @@ class CommandEngine(
         return "emergency_call:$number"
     }
 
+    /**
+     * Loads the local brain on demand (lazy). True when it is ready.
+     * Called only when Groq failed or no key is saved — the 2.8 GB model
+     * is never loaded eagerly, so a voice question cannot run the phone
+     * out of memory either.
+     */
+    private suspend fun ensureLocalBrain(): Boolean {
+        val bridge = app.llamaBridge
+        if (bridge.isLoaded()) return true
+        val path = app.secureStore.getString(SecureStore.KEY_BRAIN_MODEL_PATH)
+        if (path.isNullOrBlank() || !java.io.File(path).exists()) return false
+        return try {
+            bridge.loadModel(path)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private suspend fun screenSummary(): String {
         val acc = GobiAccessibilityService.instance
         val screenText = acc?.screenTextSummary() ?: ""
@@ -178,12 +197,28 @@ class CommandEngine(
             voice.speak("Screen lo emi kanipinchaledhu")
             return "screen:empty"
         }
-        val bridge = app.llamaBridge
-        if (!bridge.isLoaded()) {
+        voice.speak("Chusthunna, koncham aagandi")
+        // Jarvis mode (v1.3): try Groq first for the summary — fast, no
+        // local load. Only if Groq fails do we load the local brain
+        // (lazily); if that fails too, read the text aloud.
+        val groqReply = app.groqClient.chat(
+            listOf(
+                ChatRepository.Message("system", SystemPrompt.JARVIS_TEXT),
+                ChatRepository.Message(
+                    "user",
+                    "Screen lo ee text undhi: ${screenText.take(2000)}. Idi enti, short ga cheppu."
+                )
+            )
+        )
+        if (!groqReply.isNullOrBlank()) {
+            voice.speak(groqReply.trim())
+            return "screen:summary_groq"
+        }
+        if (!ensureLocalBrain()) {
             voice.speak(screenText.take(300))
             return "screen:read_aloud"
         }
-        voice.speak("Chusthunna, koncham aagandi")
+        val bridge = app.llamaBridge
         val roles = arrayOf("system", "user")
         val contents = arrayOf(
             SystemPrompt.TEXT_SHORT,
@@ -226,7 +261,7 @@ class CommandEngine(
         }
         val acc = GobiAccessibilityService.instance
         if (acc == null) {
-            voice.speak("Accessibility service off ga undhi. Settings lo Hey Gobi on cheyyandi.")
+            voice.speak("Accessibility service off ga undhi. Settings lo The Structure on cheyyandi.")
             return "fail:no_accessibility"
         }
         if (acc.setTextOnFocusedNode(text)) {
@@ -447,7 +482,7 @@ class CommandEngine(
     private fun globalAction(which: String): String {
         val acc = GobiAccessibilityService.instance
         if (acc == null) {
-            voice.speak("Accessibility service off ga undhi. Settings lo Hey Gobi on cheyyandi.")
+            voice.speak("Accessibility service off ga undhi. Settings lo The Structure on cheyyandi.")
             return "fail:no_accessibility"
         }
         val action = when (which) {
@@ -686,12 +721,26 @@ class CommandEngine(
     // ------------------------------------------------------------------
 
     private suspend fun askBrain(raw: String): String {
-        val bridge = app.llamaBridge
-        if (!bridge.isLoaded()) {
+        voice.speak("Alochisthunna, koncham aagandi")
+        // Jarvis mode (v1.3): try Groq first — fast, and it never touches
+        // the 2.8 GB local model. Only if Groq fails do we load the local
+        // brain (lazily) and ask it instead. One-off question: do not
+        // pollute the chat history.
+        val groqReply = app.groqClient.chat(
+            listOf(
+                ChatRepository.Message("system", SystemPrompt.JARVIS_TEXT),
+                ChatRepository.Message("user", raw)
+            )
+        )
+        if (!groqReply.isNullOrBlank()) {
+            voice.speak(groqReply.trim())
+            return "brain:groq"
+        }
+        if (!ensureLocalBrain()) {
             voice.speak("Brain load avvaledhu. App lo model import chesi malli try cheyyandi.")
             return "fail:brain_not_loaded"
         }
-        voice.speak("Alochisthunna, koncham aagandi")
+        val bridge = app.llamaBridge
         // One-off question: do not pollute the chat history.
         val history = listOf(
             "system" to SystemPrompt.TEXT,

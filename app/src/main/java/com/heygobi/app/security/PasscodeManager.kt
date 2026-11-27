@@ -5,9 +5,9 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 
 /**
- * The Hey Gobi app passcode.
+ * The Structure app passcode.
  *
- * After "Hey Gobi" wakes the phone and the voice is verified, the app asks
+ * After "The Structure" wakes the phone and the voice is verified, the app asks
  * for this passcode before it takes control of the phone. The passcode is
  * 4-8 digits, chosen by the user in the app. It is stored only as a salted
  * SHA-256 hash — the passcode itself is never stored anywhere.

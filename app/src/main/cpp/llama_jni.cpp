@@ -1,4 +1,4 @@
-// Hey Gobi — JNI bridge to llama.cpp v1.1.0.
+// The Structure — JNI bridge to llama.cpp v1.1.0.
 //
 // One model, one context. The Kotlin side (LlamaBridge) owns the lifecycle:
 //   nativeInit() -> nativeLoadModel(path, ctxSize, threads)
