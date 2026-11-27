@@ -60,20 +60,57 @@ class CommandEngine(
         private const val NOT_A_COMMAND = "__not_a_command__"
         private val YES_WORDS = listOf("yes", "avunu", "sare", "ok", "cheyyi", "pampu", "correct")
         private val NO_WORDS = listOf("no", "vaddu", "kadu", "odhu", "cancel", "aapu")
+
+        /**
+         * v1.4.3: turns a CommandEngine action string ("open:com.foo",
+         * "fail:app_not_found", "stop", ...) into one honest chat line.
+         * Pure function, shared by the typed-chat path and the voice
+         * path so the two never drift apart.
+         */
+        fun humanizeAction(action: String): String = when {
+            action.startsWith("open:") -> "Done — app open chesa."
+            action == "stop" -> "Sare."
+            action.startsWith("fail:") -> "Sorry, aa pani cheyyalekapoyanu."
+            action.startsWith("screen:") -> "Screen chusa."
+            else -> "Done."
+        }
     }
 
+    // v1.4.3: the last brain answer, spoken aloud — kept so the voice
+    // path can record the actual answer in Chat instead of the
+    // "brain:groq" tag. Reset for every new command.
+    private var lastBrainReply: String? = null
+
     suspend fun handle(rawText: String) {
+        handleWithResult(rawText)
+    }
+
+    /**
+     * v1.4.3: same as [handle], but returns the human-readable result —
+     * "Done — app open chesa." for a command, the brain's actual answer
+     * for a question — so the caller can record the exchange in Chat.
+     * Brain answers are returned as text; everything else is humanized
+     * from its action string.
+     */
+    suspend fun handleWithResult(rawText: String): String {
         val text = rawText.trim()
-        if (text.isEmpty()) return
+        if (text.isEmpty()) return "Done."
         val n = normalize(text)
+        lastBrainReply = null
         Log.i(TAG, "command: $n")
-        try {
+        return try {
             val action = dispatch(n, text)
             logCommand(text, action)
+            if (action == "brain:groq" || action == "brain") {
+                lastBrainReply ?: humanizeAction(action)
+            } else {
+                humanizeAction(action)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "command failed", e)
             voice.speak("Sorry, aa pani cheyyalekapoyanu")
             logCommand(text, "fail:exception")
+            "Sorry, aa pani cheyyalekapoyanu."
         }
     }
 
@@ -757,6 +794,7 @@ class CommandEngine(
             )
         )
         if (!groqReply.isNullOrBlank()) {
+            lastBrainReply = groqReply.trim()
             voice.speak(groqReply.trim())
             return "brain:groq"
         }
@@ -782,6 +820,7 @@ class CommandEngine(
         job.cancel()
         val text = reply.toString().trim()
         if (text.isNotEmpty()) {
+            lastBrainReply = text
             voice.speak(text)
             return "brain"
         }

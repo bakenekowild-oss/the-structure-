@@ -4,6 +4,7 @@ import com.heygobi.app.data.ChatDao
 import com.heygobi.app.data.ChatMessageEntity
 import com.heygobi.app.security.SecureStore
 import com.heygobi.app.voice.CommandEngine
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -112,6 +113,18 @@ class ChatRepository(
             return true
         }
 
+        // v1.4.2: capability questions get the true answer on the phone —
+        // the cloud brain does not know what this app can do, and it was
+        // telling him it cannot control the phone.
+        val capabilityText = capabilityAnswer(trimmed)
+        if (capabilityText != null) {
+            _messages.value = _messages.value + Message("assistant", capabilityText)
+            chatDao.insert(
+                ChatMessageEntity(role = "assistant", content = capabilityText, timestamp = System.currentTimeMillis())
+            )
+            return true
+        }
+
         if (!groqClient.hasKey() && !bridge.isLoaded()) return false
 
         _isReplying.value = true
@@ -205,12 +218,49 @@ class ChatRepository(
      * "fail:app_not_found", "stop", ...) into one honest chat line.
      * The engine already speaks the full confirmation aloud.
      */
-    private fun humanizeCommandResult(action: String): String = when {
-        action.startsWith("open:") -> "Done — app open chesa."
-        action == "stop" -> "Sare."
-        action.startsWith("fail:") -> "Sorry, aa pani cheyyalekapoyanu."
-        action.startsWith("screen:") -> "Screen chusa."
-        else -> "Done."
+    private fun humanizeCommandResult(action: String): String =
+        CommandEngine.humanizeAction(action)
+
+    /**
+     * v1.4.3: records a spoken voice command and its result in the chat
+     * history, so Chat is the record of everything the voice assistant
+     * did. Called from the wake-word service after a command runs.
+     */
+    suspend fun recordVoiceExchange(userText: String, assistantText: String) {
+        val cleanUser = userText.trim()
+        val cleanAssistant = assistantText.trim()
+        if (cleanUser.isEmpty()) return
+        _messages.value = _messages.value + Message("user", cleanUser)
+        chatDao.insert(
+            ChatMessageEntity(role = "user", content = cleanUser, timestamp = System.currentTimeMillis())
+        )
+        if (cleanAssistant.isNotEmpty()) {
+            _messages.value = _messages.value + Message("assistant", cleanAssistant)
+            chatDao.insert(
+                ChatMessageEntity(role = "assistant", content = cleanAssistant, timestamp = System.currentTimeMillis())
+            )
+        }
+    }
+
+    /**
+     * v1.4.2: a straight answer to "can you control my phone?" and the
+     * like — answered on the phone, never sent to the cloud brain, which
+     * does not know what this app can do and was saying it cannot.
+     */
+    private fun capabilityAnswer(userText: String): String? {
+        val n = userText.lowercase(Locale.ENGLISH)
+            .replace(Regex("[^a-z0-9 ]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        val isCapabilityQuestion = n.contains("can you control") ||
+            n.contains("control my phone") ||
+            n.startsWith("what can you do")
+        if (!isCapabilityQuestion) return null
+        return "Yes, Guruvu garu — I can control this phone by your voice. " +
+            "Say \"The Structure\", then tell me: open any app, call or message " +
+            "anyone, type, scroll, go back or home, change volume, check your " +
+            "notifications, and more. I do it on the phone itself — no Google " +
+            "Assistant needed."
     }
 
     suspend fun clearHistory() {

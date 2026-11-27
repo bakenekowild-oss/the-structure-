@@ -125,6 +125,10 @@ class WakeWordService : Service(), VoiceIO {
     @Volatile
     private var lastFallbackPromptMs: Long = 0L
 
+    // v1.4.3: the floating voice panel over other apps (null when the
+    // full-screen activity is used instead, or no panel is showing).
+    private var voiceOverlay: VoiceOverlay? = null
+
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -425,30 +429,58 @@ class WakeWordService : Service(), VoiceIO {
                 }
             }
             state = State.COMMAND
-            // v1.4: open the voice-command screen so he SEES the app
-            // listening, what it heard, and the result — no more
-            // invisible listening while the Setup screen sits there.
+            // v1.4: reset the command UI so the panel shows a fresh
+            // session, and mark it listening so the panel stays up.
             SessionState.resetCommandUi()
             SessionState.setCommandListening(true)
-            try {
+            // v1.4.3: the voice panel floats OVER whatever app he is using
+            // (the overlay permission, Setup step 12) — no full-screen
+            // takeover. If the overlay is not allowed, fall back to the
+            // full-screen voice-command activity.
+            val overlay = VoiceOverlay(this)
+            val overlayShown = if (overlay.isAvailable()) {
+                overlay.show()
+                voiceOverlay = overlay
+                true
+            } else {
+                false
+            }
+            // v1.4.2: the panel itself says "Cheppandi, Guruvu garu" —
+            // speaking it aloud too only feeds the mic its own echo.
+            // Speak it only when nothing could be shown at all.
+            val screenOpened = overlayShown || try {
                 startActivity(Intent(this, VoiceCommandActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 })
+                true
             } catch (e: Exception) {
                 Log.e(TAG, "Could not open voice-command screen", e)
+                false
             }
-            speak("Cheppandi")
+            if (!screenOpened) speak("Cheppandi")
             val text = listen(COMMAND_TIMEOUT_MS)
             if (text.isNullOrBlank()) {
                 backToListening()
                 return
             }
             SessionState.setCommandHeard(text)
-            withContext(Dispatchers.Default) {
-                commandEngine.handle(text)
+            val resultText = try {
+                withContext(Dispatchers.Default) {
+                    commandEngine.handleWithResult(text)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "command failed", e)
+                "Sorry, aa pani cheyyalekapoyanu."
             }
-            SessionState.setCommandResult("Ayyindhi ✓")
-            // Let him see the result before the screen closes.
+            // v1.4.3: the spoken command and its result are recorded in
+            // Chat — the chat is the record of what the voice assistant did.
+            try {
+                app.chatRepository.recordVoiceExchange(text, resultText)
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not record voice exchange in chat", e)
+            }
+            SessionState.setCommandResult(resultText.take(140))
+            // Let him see the result before the panel closes.
             delay(1500)
             backToListening()
         } catch (e: CancellationException) {
@@ -462,6 +494,9 @@ class WakeWordService : Service(), VoiceIO {
     private fun backToListening() {
         state = State.LISTENING
         lastCommandText = null
+        // v1.4.3: hide the floating voice panel, if it is showing.
+        voiceOverlay?.hide()
+        voiceOverlay = null
         // v1.4: closes the voice-command screen, if it is open.
         SessionState.setCommandListening(false)
         try {

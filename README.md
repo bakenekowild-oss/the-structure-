@@ -8,6 +8,27 @@ itself. No accounts, no subscription, no expiry. An optional free Groq key
 ("Jarvis mode", Settings) makes chat answer in seconds; without it the
 on-device brain answers.
 
+**v1.4.3 — what changed:** chat and voice are one record now, and the
+voice panel floats over apps. Every spoken command and its result are
+written into Chat, so the chat history shows what the voice assistant
+did — open, call, answer, everything. The voice panel is now a small
+floating card over whatever app he is using (the "Display over other
+apps" permission), with the mic, what it heard, and the result — no more
+full-screen takeover; the full-screen screen stays only as a fallback
+when the overlay permission is off. This build also includes the v1.4.2
+chat–voice connection (brain knows it can control the phone, and the
+"Cheppandi" prompt is no longer spoken aloud). Same package and signing
+key, so v1.4.3 installs as an update — no uninstall, no setup redo.
+
+**v1.4.2 — what changed:** chat and voice are finally connected. The cloud
+brain did not know what this app can do, so it told him it cannot control
+the phone — now the Jarvis prompt states the phone-control powers, and
+"can you control my phone?" gets the true answer on the phone itself.
+Also, the "Cheppandi" prompt is no longer spoken aloud: the voice-command
+screen already shows it, and speaking it only fed the mic its own echo.
+Same package and signing key, so v1.4.2 installs as an update — no
+uninstall, no setup redo.
+
 **v1.4.1 — what changed:** the mic screen stopped closing on its own
 echo. The app speaks "Cheppandi" and the mic hears its own voice — Vosk
 took that for his command and the session ended at once, about two seconds
